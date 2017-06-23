@@ -8,6 +8,22 @@ from pyomo.opt.base import SolverFactory
 
 # SCENARIO GENERATORS
 
+def scenario_base(data):
+    return data
+
+# Global quantities
+
+def scen_CO2limit(value):
+    # Used to set global CO2 limit
+    
+    def scenario(data):
+        data['hacks'].loc['Global CO2 limit', 'Value'] = value
+        return data
+        
+    scenario.__name__ = 'scenario_CO2-limit-' + '{:04}'.format(value)
+    return scenario
+
+
 # Commodity
 
 def scen_co2price(site, co2price):
