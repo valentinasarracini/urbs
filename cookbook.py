@@ -7,122 +7,32 @@ from datetime import datetime
 from pyomo.opt.base import SolverFactory
 
 # SCENARIO GENERATORS
+# In this script a variety of scenario generator functions are defined to
+# facilitate scenario definitions.
+
+# !IMPORTANT NOTE!
+# All texts must be explicitely typed in as a string, e.g. 'Campus'.
+
 
 def scenario_base(data):
     return data
+
 
 # Global quantities
 
 def scen_CO2limit(value):
     # Used to set global CO2 limit
-    
+
     def scenario(data):
         data['hacks'].loc['Global CO2 limit', 'Value'] = value
         return data
-        
+
     scenario.__name__ = 'scenario_CO2-limit-' + '{:04}'.format(value)
     return scenario
 
 
-# Commodity
-
-def scen_co2price(site, co2price):
-    # site = string; Site where the value should be changed.
-    # value = float; New set value
-
-    def scenario(data):
-        data['commodity'].loc[(site, 'CO2', 'Env'), 'price'] = co2price
-        return data
-
-    scenario.__name__ = 'scenario_CO2-price-' + '{:04}'.format(co2price)
-    # used for result filenames
-    return scenario
-
-
-def scen_gasprice(site, gasprice):
-    # scenario_name_suffix, site = string, value = float
-
-    def scenario(data):
-        data['commodity'].loc[(site, 'Gas', 'Stock'), 'price'] = gasprice
-        return data
-
-    scenario.__name__ = 'scenario_Gas-price-' + '{:04}'.format(value)
-    # used for result filenames
-    return scenario
-
-
-def scen_elecprice(site, elecprice):
-    # scenario_name_suffix, site = string, value = float
-
-    def scenario(data):
-        data['commodity'].loc[(site, 'Gridelec', 'Stock'), 'price'] = elecprice
-        return data
-
-    scenario.__name__ = 'scenario_Elec-price-' + '{:04}'.format(value)
-    # used for result filenames
-    return scenario
-
-
-def scen_geothprice(site, geothprice):
-    # scenario_name_suffix, site = string, value = float
-
-    def scenario(data):
-        data['commodity'].loc[(site, 'Geothermal', 'Stock'), 'price'] = (
-                geothprice)
-        return data
-
-    scenario.__name__ = 'scenario_GT-price-' + '{:04}'.format(geothprice)
-    # used for result filenames
-    return scenario
-
-
-# Process
-
-def scen_proprop(site, process, property, value):
-    # property variation for given process
-
-    def scenario(data):
-        data['process'].loc[(site, process), 'property'] = value
-        return data
-
-    scenario.__name__ = 'scenario_' + process + property + '{:04}'.format(value)
-    return scenario
-
-
-def scen_2proprop(site, process1, process2, property, value):
-    # property variation for 2 given processes
-
-    def scenario(data):
-        data['process'].loc[(site, process1), property] = value
-        data['process'].loc[(site, process2), property] = value
-        return data
-
-    scenario.__name__ = ('scenario_' + process1 + process2 + property + 
-    '{:04}'.format(value))
-    return scenario
-
-
-# Process commodities
-
-def scen_chpprop(process, Eleceff):
-    # scenario_name_suffix, site = string, value = float
-
-    def scenario(data):
-        data['process_commodity'].loc[(process, 'Elec', 'Out'), 'ratio'] = (
-                Eleceff)
-        data['process_commodity'].loc[(process, 'HeatHigh', 'Out'), 'ratio'] = (
-                1 - 1.5 * Eleceff)
-        return data
-
-    scenario.__name__ = 'scenario_CHP-elec-' + '{:04.4f}'.format(value)
-    # used for result filenames
-    return scenario
-
-
-# Global quantities
-
 def scen_wacc(value):
-    # scenario_name_suffix, site = string, value = float
+    # Set wacc
 
     def scenario(data):
         data['process'].loc[:, 'wacc'] = value
@@ -131,131 +41,128 @@ def scen_wacc(value):
         return data
 
     scenario.__name__ = 'scenario_wacc-' + '{:03}'.format(value)
-    # used for result filenames
     return scenario
 
 
-# 2 Setting Parameters simultaneously
+# Commodity
 
-def scen_gasgeothprice(site1, site2, value1, value2):
-    # scenario_name_suffix, site = string, value = float
+def sc_1comprop(site, com, type, property, value):
+    # variation of 1 property of 1 given commodity
 
     def scenario(data):
-        data['commodity'].loc[(site1, 'Gas', 'Stock'), 'price'] = value1
-        data['commodity'].loc[(site2, 'Geothermal', 'Stock'), 'price'] = value2
+        data['process'].loc[(site, com, type), property] = value
         return data
 
-    scenario.__name__ = ('scenario_Gas-price-' + '{:04}'.format(value1) +
-                         '-GT-price-' + '{:04}'.format(value2))
-    # used for result filenames
+    scenario.__name__ = ('scenario_' + site + com + property +
+                         '{:04}'.format(value)
+                         )
     return scenario
 
 
-def scen_gasco2price(site1, site2, value1, value2):
-    # scenario_name_suffix, site = string, value = float
+def sc_2comprop(site1, site2, com1, com2, type1, type2, property1, property2,
+                value1, value2):
+    # variation of 2 properties of 2 given process
 
     def scenario(data):
-        data['commodity'].loc[(site1, 'Gas', 'Stock'), 'price'] = value1
-        data['commodity'].loc[(site2, 'CO2', 'Env'), 'price'] = value2
+        data['process'].loc[(site1, com1, type1), property1] = value1
+        data['process'].loc[(site2, com2, type2), property2] = value2
         return data
 
-    scenario.__name__ = ('scenario_Gas-price-' + '{:04}'.format(value1) +
-            '-co2-price-' + '{:04}'.format(value2))
-    # used for result filenames
+    scenario.__name__ = ('scenario_' + site1 + com1 + property1 +
+                         '{:04}'.format(value1) + site2 + com2 + property2 +
+                         '{:04}'.format(value2)
+                         )
     return scenario
 
 
-def scen_chppropgasprice(process, site, value1, value2):
-    # scenario_name_suffix, site = string, value = float
+# Process
+
+def sc_1proprop(site, process, property, value):
+    # variation of 1 property of 1 given process
 
     def scenario(data):
-        data['process_commodity'].loc[(process, 'Elec', 'Out'), 'ratio'] = (
-                value1)
-        data['process_commodity'].loc[(process, 'HeatHigh', 'Out'), 'ratio'] = (
-                1 - 1.5 * value1)
-        data['commodity'].loc[(site, 'Gas', 'Stock'), 'price'] = value2
+        data['process'].loc[(site, process), property] = value
         return data
 
-    scenario.__name__ = ('scenario_CHP-ElecEff-' + '{:04,4f}'.format(value1) + 
-            '-Gas-price-' + '{:04}'.format(value2))
-    # used for result filenames
+    scenario.__name__ = ('scenario_' + site + process + property +
+                         '{:04}'.format(value)
+                         )
     return scenario
 
 
-def scen_chppropco2price(process, site, eleceff, co2price):
-    # scenario_name_suffix, site = string, value = float
+def sc_2proprop(site1, site2, process1, process2, property1, property2,
+                value1, value2):
+    # variation of 2 properties of 2 given process
 
     def scenario(data):
-        data['process_commodity'].loc[(process, 'Elec', 'Out'), 'ratio'] = (
-                eleceff)
-        data['process_commodity'].loc[(process, 'HeatHigh', 'Out'), 'ratio'] = (
-                1 - 1.5 * eleceff)
-        data['commodity'].loc[(site, 'CO2', 'Env'), 'price'] = co2price
+        data['process'].loc[(site1, process1), property1] = value1
+        data['process'].loc[(site2, process2), property2] = value2
         return data
 
-    scenario.__name__ = ('scenario_ElecEff-' + '{:04.4f}'.format(eleceff) +
-            '-co2-price-' + '{:04}'.format(co2price))
-    # used for result filenames
+    scenario.__name__ = ('scenario_' + site1 + process1 + property1 +
+                         '{:04}'.format(value1) + site2 + process2 +
+                         property2 + '{:04}'.format(value2)
+                         )
     return scenario
 
 
-# SCENARIO LIST GENERATORS
+# Process commodities
 
-def scen_1d_paramvar(scen_param, prop, min, max, steps):
+def sc_1procomprop(process, com, dir, property, value):
+    # variation of 1 property of 1 given process-commodity
 
-    scenario_list = []
+    def scenario(data):
+        data['process-commodity'].loc[(process, com, dir), property] = value
+        return data
 
-    for index in np.linspace(min, max, steps):
-        scenario_list.append(scen_param(prop, index))
-    
-    return scenario_list
-
-
-def scen_1d_log10paramvar(scen_param, prop, min, max, steps):
-    # Careful! Use exponent für min and max values. 
-
-    scenario_list = []
-
-    for index in np.logspace(min, max, steps):
-        scenario_list.append(scen_param(prop, index))
-    
-    return scenario_list
-    
-
-def scen_2d_paramvar(scen_param, prop1, min1, max1, steps1,
-        prop2, min2, max2, steps2):
-
-    scenario_list = []
-
-    for index2 in np.linspace(min2, max2, steps2):
-        for index1 in np.linspace(min1, max1, steps1):
-            scenario_list.append(scen_param(prop1, prop2, index1, index2))
-    
-    return scenario_list
+    scenario.__name__ = ('scenario_' + process + com + dir + property +
+                         '{:04}'.format(value)
+                         )
+    return scenario
 
 
-def scen_2d_log10paramvar(scen_param, prop1, min1, max1, steps1,
-        prop2, min2, max2, steps2):
-    # Careful! Use exponent for min and max values.
+def sc_2procomprop(process1, process2, com1, com2, dir1, dir2, property1,
+                   property2, value1, value2):
+    # variation of 2 properties of 2 given process-commodity
 
-    scenario_list = []
+    def scenario(data):
+        data['process-commodity'].loc[(site1, process1), property1] = value1
+        data['process-commodity'].loc[(site2, process2), property2] = value2
+        return data
 
-    for index2 in np.logspace(min2, max2, steps2):
-        for index1 in np.logspace(min1, max1, steps1):
-            scenario_list.append(scen_param(prop1, prop2, index1, index2))
-    
-    return scenario_list
+    scenario.__name__ = ('scenario_' + process1 + com1 + dir1 + property1 +
+                         '{:04}'.format(value1) + process2 + com2 + dir2 +
+                         property2 + '{:04}'.format(value2)
+                         )
+    return scenario
 
 
-def scen_2d_linlog10paramvar(scen_param, prop1, min1, max1, steps1,
-        prop2, min2, max2, steps2):
-    # Careful! Use exponent for min and max values.
+# Storage
 
-    scenario_list = []
+def sc_1stoprop(site, sto, com, property, value):
+    # variation of 1 property of 1 given storage
 
-    for index2 in np.logspace(min2, max2, steps2):
-        for index1 in np.linspace(min1, max1, steps1):
-            scenario_list.append(scen_param(prop1, prop2, index1, index2))
-    
-    return scenario_list
-    
+    def scenario(data):
+        data['storage'].loc[(site, sto, com), property] = value
+        return data
+
+    scenario.__name__ = ('scenario_' + site + sto + com + property +
+                         '{:04}'.format(value)
+                         )
+    return scenario
+
+
+def sc_2stoprop(site1, site2, sto1, sto2, com1, com2, property1,
+                property2, value1, value2):
+    # variation of 2 properties of 2 given storages
+
+    def scenario(data):
+        data['process-commodity'].loc[(site1, sto1, com1), property1] = value1
+        data['process-commodity'].loc[(site2, sto2, com2), property2] = value2
+        return data
+
+    scenario.__name__ = ('scenario_' + site1 + sto1 + com1 + property1 +
+                         '{:04}'.format(value1) + site2 + sto2 + com2 +
+                         property2 + '{:04}'.format(value2)
+                         )
+    return scenario

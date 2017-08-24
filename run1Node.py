@@ -137,9 +137,9 @@ if __name__ == '__main__':
     scenarios = [
                  cb.scenario_base,
                  cb.scen_CO2limit(40000),
-                 cb.scen_CO2limit(30000),
-                 cb.scen_CO2limit(20000),
-                 cb.scen_CO2limit(10000)
+                 cb.scen_1proprop('Campus', 'PVS30', 'inv-cost', 600000),
+                 cb.scen_2stoprop('Campus', 'Campus', 'Battery', 'Reservoir',
+                 'Elec', 'Heat', 'eff-in', 'discharge', 0.9, 0.9999)
     ]
 
     for scenario in scenarios:

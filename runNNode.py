@@ -3,7 +3,7 @@ import pandas as pd
 import pyomo.environ
 import shutil
 import urbs
-import cookbook
+import cookbook as cb
 from datetime import datetime
 from pyomo.opt.base import SolverFactory
 
@@ -123,7 +123,7 @@ if __name__ == '__main__':
         'sum': range(3000, 3000+24*7),
         'aut': range(5000, 5000+24*7),
         'win': range(7000, 7000+24*7)
-    }
+        }
 
     # add or change plot colors
     my_colors = {
@@ -134,8 +134,13 @@ if __name__ == '__main__':
         urbs.COLORS[country] = color
 
     # select scenarios to be run
-    scenarios = cookbook.scen_2d_linlog10paramvar(cookbook.scen_chppropco2price, 
-            'Gas plant', 0.25, 0.55, 5, 'Campus', 1, 3, 3)
+    scenarios = [
+                 cb.scenario_base,
+                 cb.scen_CO2limit(40000),
+                 cb.scen_1proprop('Campus', 'PVS30', 'inv-cost', 600000),
+                 cb.scen_2stoprop('Campus', 'Campus', 'Battery', 'Reservoir',
+                 'Elec', 'Heat', 'eff-in', 'discharge', 0.9, 0.9999)
+                 ]
 
     for scenario in scenarios:
         prob = run_scenario(input_file, timesteps, scenario, result_dir,
