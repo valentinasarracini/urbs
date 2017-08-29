@@ -17,7 +17,7 @@ def scenario_stock_prices(data):
     # change stock commodity prices
     co = data['commodity']
     stock_commodities_only = (co.index.get_level_values('Type') == 'Stock')
-    co.loc[stock_commodities_only, 'price'] *= 1.5
+    co.loc[stock_commodities_only, 'price'] *= 1.2
     return data
 
 
