@@ -109,7 +109,7 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
 
     # scenario name, read and modify data for scenario
     sce = scenario.__name__
-    data = urbs.read_excel(input_file)
+    data = urbs.read_excel(input_files)
     data = scenario(data)
 
     # create model
@@ -147,7 +147,7 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
     return prob
 
 if __name__ == '__main__':
-    input_file = 'mimo-example.xlsx'
+    input_files = urbs.read_intertemporal('Input')
     result_name = os.path.splitext(input_file)[0]  # cut away file extension
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 

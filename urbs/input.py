@@ -2,7 +2,13 @@ import pandas as pd
 from xlrd import XLRDError
 
 
-def read_excel(filename):
+def read_intertemporal(folder):
+    glob_input = os.path.join(folder, '*.xlsx')
+    result_files = sorted(glob.glob(glob_input))
+    return input_files
+
+
+def read_excel(input_files):
     """Read Excel input file and prepare URBS input dict.
 
     Reads an Excel spreadsheet that adheres to the structure shown in
@@ -25,48 +31,87 @@ def read_excel(filename):
         >>> data['global'].loc['CO2 limit', 'value']
         150000000
     """
-    with pd.ExcelFile(filename) as xls:
-        site = xls.parse('Site').set_index(['Name'])
-        commodity = (
-            xls.parse('Commodity').set_index(['Site', 'Commodity', 'Type']))
-        process = xls.parse('Process').set_index(['Site', 'Process'])
-        process_commodity = (
-            xls.parse('Process-Commodity')
-               .set_index(['Process', 'Commodity', 'Direction']))
-        transmission = (
-            xls.parse('Transmission')
-               .set_index(['Site In', 'Site Out',
+    
+    gl = []
+    sit = []
+    com = []
+    pro = []
+    pro_com = []
+    tra = []
+    sto = []
+    dem = []
+    sup = []
+    bsp = []
+    ds = []
+    
+    for filename in files:
+        with pd.ExcelFile(filename) as xls:
+            glob = xls.parse('Global').set_index(['Property'])
+            year = glob.loc['Year']['value']
+            glob = glob.drop(['Year']).drop(['description'], axis=1)
+            
+            glob = pd.concat([glob], keys=[year], names=['year'])
+            gl.append(glob)
+            site = xls.parse('Site').set_index(['Name'])
+            site = pd.concat([site], keys=[year], names=['year'])
+            sit.append(site)
+            commodity = (
+                xls.parse('Commodity').set_index(['Site', 'Commodity', 'Type']))
+            commodity = pd.concat([commodity], keys=[year], names=['year'])
+            com.append(commodity)
+            process = xls.parse('Process').set_index(['Site', 'Process'])
+            process = pd.concat([process], keys=[year], names=['year'])
+            pro.append(process)
+            process_commodity = (
+                xls.parse('Process-Commodity')
+                   .set_index(['Process', 'Commodity', 'Direction']))
+            process_commodity = pd.concat([process_commodity], keys=[year], names=['year'])
+            pro_com.append(process_commodity)
+            transmission = (
+                xls.parse('Transmission')
+                   .set_index(['Site In', 'Site Out',
                            'Transmission', 'Commodity']))
-        storage = (
-            xls.parse('Storage').set_index(['Site', 'Storage', 'Commodity']))
-        demand = xls.parse('Demand').set_index(['t'])
-        supim = xls.parse('SupIm').set_index(['t'])
-        buy_sell_price = xls.parse('Buy-Sell-Price').set_index(['t'])
-        dsm = xls.parse('DSM').set_index(['Site', 'Commodity'])
-        glob = xls.parse('Global').set_index(['Property'])
+            transmission = pd.concat([transmission], keys=[year], names=['year'])
+            tra.append(transmission)
+            storage = (
+                xls.parse('Storage').set_index(['Site', 'Storage', 'Commodity']))
+            storage = pd.concat([storage], keys=[year], names=['year'])
+            sto.append(storage)
+            demand = xls.parse('Demand').set_index(['t'])
+            demand = pd.concat([demand], keys=[year], names=['year'])
+            dem.append(demand)
+            supim = xls.parse('SupIm').set_index(['t'])
+            supim = pd.concat([supim], keys=[year], names=['year'])
+            sup.append(supim)
+            buy_sell_price = xls.parse('Buy-Sell-Price').set_index(['t'])
+            buy_sell_price = pd.concat([buy_sell_price], keys=[year], names=['year'])
+            bsp.append(buy_sell_price)
+            dsm = xls.parse('DSM').set_index(['Site', 'Commodity'])
+            dsm = pd.concat([dsm], keys=[year], names=['year'])
+            ds.append(dsm)
 
-    # prepare input data
-    # split columns by dots '.', so that 'DE.Elec' becomes the two-level
-    # column index ('DE', 'Elec')
-    demand.columns = split_columns(demand.columns, '.')
-    supim.columns = split_columns(supim.columns, '.')
-    buy_sell_price.columns = split_columns(buy_sell_price.columns, '.')
-
+        # prepare input data
+        # split columns by dots '.', so that 'DE.Elec' becomes the two-level
+        # column index ('DE', 'Elec')
+        demand.columns = split_columns(demand.columns, '.')
+        supim.columns = split_columns(supim.columns, '.')
+        buy_sell_price.columns = split_columns(buy_sell_price.columns, '.')
+        
     data = {
-        'global': glob,
-        'site': site,
-        'commodity': commodity,
-        'process': process,
-        'process_commodity': process_commodity,
-        'transmission': transmission,
-        'storage': storage,
-        'demand': demand,
-        'supim': supim,
-        'buy_sell_price': buy_sell_price,
-        'dsm': dsm
+        'global': pd.concat(gl),
+        'site': pd.concat(sit),
+        'commodity': pd.concat(com),
+        'process': pd.concat(pro),
+        'process_commodity': pd.concat(pro_com),
+        'transmission': pd.concat(tra),
+        'storage': pd.concat(sto),
+        'demand': pd.concat(dem),
+        'supim': pd.concat(sup),
+        'buy_sell_price': pd.concat(bsp),
+        'dsm': pd.concat(ds)
         }
 
-    # sort nested indexes to make direct assignments work
+        # sort nested indexes to make direct assignments work
     for key in data:
         if isinstance(data[key].index, pd.core.index.MultiIndex):
             data[key].sortlevel(inplace=True)

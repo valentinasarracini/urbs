@@ -33,7 +33,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     #
     #     m.storage.loc[site, storage, commodity][attribute]
     #
-    m.glob = data['global'].drop('description', axis=1)
+    m.glob = data['global']
     m.site = data['site']
     m.commodity = data['commodity']
     m.process = data['process']
