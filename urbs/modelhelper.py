@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def annuity_factor(n, i):
+def annuity_factor(n, i, year_built):
     """Annuity factor formula.
 
     Evaluates the annuity factor formula for depreciation duration
@@ -20,7 +20,7 @@ def annuity_factor(n, i):
         0.09439
 
     """
-    return (1+i)**n * i / ((1+i)**n - 1)
+    return (1+i) ** (1-(year_built-m.glob.index.min()[0])) / n
 
 
 def commodity_balance(m, tm, sit, com):

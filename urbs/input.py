@@ -31,7 +31,7 @@ def read_excel(input_files):
         >>> data['global'].loc['CO2 limit', 'value']
         150000000
     """
-    
+
     gl = []
     sit = []
     com = []
@@ -43,20 +43,21 @@ def read_excel(input_files):
     sup = []
     bsp = []
     ds = []
-    
+
     for filename in files:
         with pd.ExcelFile(filename) as xls:
             glob = xls.parse('Global').set_index(['Property'])
             year = glob.loc['Year']['value']
             glob = glob.drop(['Year']).drop(['description'], axis=1)
-            
+
             glob = pd.concat([glob], keys=[year], names=['year'])
             gl.append(glob)
             site = xls.parse('Site').set_index(['Name'])
             site = pd.concat([site], keys=[year], names=['year'])
             sit.append(site)
             commodity = (
-                xls.parse('Commodity').set_index(['Site', 'Commodity', 'Type']))
+                xls.parse('Commodity')
+                   .set_index(['Site', 'Commodity', 'Type']))
             commodity = pd.concat([commodity], keys=[year], names=['year'])
             com.append(commodity)
             process = xls.parse('Process').set_index(['Site', 'Process'])
@@ -65,16 +66,19 @@ def read_excel(input_files):
             process_commodity = (
                 xls.parse('Process-Commodity')
                    .set_index(['Process', 'Commodity', 'Direction']))
-            process_commodity = pd.concat([process_commodity], keys=[year], names=['year'])
+            process_commodity =
+            pd.concat([process_commodity], keys=[year], names=['year'])
             pro_com.append(process_commodity)
             transmission = (
                 xls.parse('Transmission')
                    .set_index(['Site In', 'Site Out',
-                           'Transmission', 'Commodity']))
-            transmission = pd.concat([transmission], keys=[year], names=['year'])
+                              'Transmission', 'Commodity']))
+            transmission =
+            pd.concat([transmission], keys=[year], names=['year'])
             tra.append(transmission)
             storage = (
-                xls.parse('Storage').set_index(['Site', 'Storage', 'Commodity']))
+                xls.parse('Storage')
+                   .set_index(['Site', 'Storage', 'Commodity']))
             storage = pd.concat([storage], keys=[year], names=['year'])
             sto.append(storage)
             demand = xls.parse('Demand').set_index(['t'])
@@ -84,7 +88,8 @@ def read_excel(input_files):
             supim = pd.concat([supim], keys=[year], names=['year'])
             sup.append(supim)
             buy_sell_price = xls.parse('Buy-Sell-Price').set_index(['t'])
-            buy_sell_price = pd.concat([buy_sell_price], keys=[year], names=['year'])
+            buy_sell_price =
+            pd.concat([buy_sell_price], keys=[year], names=['year'])
             bsp.append(buy_sell_price)
             dsm = xls.parse('DSM').set_index(['Site', 'Commodity'])
             dsm = pd.concat([dsm], keys=[year], names=['year'])
@@ -96,7 +101,7 @@ def read_excel(input_files):
         demand.columns = split_columns(demand.columns, '.')
         supim.columns = split_columns(supim.columns, '.')
         buy_sell_price.columns = split_columns(buy_sell_price.columns, '.')
-        
+
     data = {
         'global': pd.concat(gl),
         'site': pd.concat(sit),
@@ -111,7 +116,7 @@ def read_excel(input_files):
         'dsm': pd.concat(ds)
         }
 
-        # sort nested indexes to make direct assignments work
+    # sort nested indexes to make direct assignments work
     for key in data:
         if isinstance(data[key].index, pd.core.index.MultiIndex):
             data[key].sortlevel(inplace=True)
