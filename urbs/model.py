@@ -33,7 +33,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     #
     #     m.storage.loc[site, storage, commodity][attribute]
     #
-    m.glob = data['global']
+    m.global_prop = data['global']
     m.site = data['site']
     m.commodity = data['commodity']
     m.process = data['process']
@@ -57,6 +57,8 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.sit_area = m.site['area']
     m.proc_area = m.proc_area[m.proc_area >= 0]
     m.sit_area = m.sit_area[m.sit_area >= 0]
+
+    # operational process for intertemporal planning
 
     # input ratios for partial efficiencies
     # only keep those entries whose values are
@@ -105,6 +107,12 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         ordered=True,
         doc='Set of additional DSM time steps')
 
+    # support timeframes (e.g. 2020, 2030...)
+    m.stf = pyomo.Set(
+        initialize=(m.commodity.index.get_level_values('support_timeframe')
+                    .unique()),
+        doc='Set of modeled support timeframes (e.g. years)')
+
     # site (e.g. north, middle, south...)
     m.sit = pyomo.Set(
         initialize=m.commodity.index.get_level_values('Site').unique(),
@@ -142,6 +150,9 @@ def create_model(data, timesteps=None, dt=1, dual=False):
                     'Purchase', 'Startup', 'Environmental'],
         doc='Set of cost types (hard-coded)')
 
+    # units (union of process, transmission and storage)
+    m.units = m.pro|m.tra|m.sto
+
     # tuple sets
     m.com_tuples = pyomo.Set(
         within=m.sit*m.com*m.com_type,
@@ -173,6 +184,14 @@ def create_model(data, timesteps=None, dt=1, dual=False):
                                             m)],
         doc='Combinations of possible dsm_down combinations, e.g. '
             '(5001,5003,Mid,Elec)')
+
+    # tuples for operational status of technologies
+    m.op_pro = pyomo.Set(
+        within=m.pro*m.stf*m_stf,
+        initialize=[(process, stf_1, stf_2)
+                    stf_1 + ...],
+        doc='Processes built in year_1 still operational in year_2. Can be'
+            'used in all years in between excluding(!) year_2')
 
     # process tuples for area rule
     m.pro_area_tuples = pyomo.Set(
@@ -1031,9 +1050,9 @@ def res_initial_and_final_storage_state_rule(m, t, sit, sto, com):
 
 # total CO2 output <= Global CO2 limit
 def res_global_co2_limit_rule(m):
-    if math.isinf(m.glob.loc['CO2 limit', 'value']):
+    if math.isinf(m.global_prop.loc['CO2 limit', 'value']):
         return pyomo.Constraint.Skip
-    elif m.glob.loc['CO2 limit', 'value'] > 0:
+    elif m.global_prop.loc['CO2 limit', 'value'] > 0:
         co2_output_sum = 0
         for tm in m.tm:
             for sit in m.sit:
@@ -1044,7 +1063,7 @@ def res_global_co2_limit_rule(m):
 
         # scaling to annual output (cf. definition of m.weight)
         co2_output_sum *= m.weight
-        return (co2_output_sum <= m.glob.loc['CO2 limit', 'value'])
+        return (co2_output_sum <= m.global_prop.loc['CO2 limit', 'value'])
     else:
         return pyomo.Constraint.Skip
 

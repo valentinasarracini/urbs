@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def annuity_factor(n, i, year_built):
+def annuity_factor(n, i, sup_tf_built):
     """Annuity factor formula.
 
     Evaluates the annuity factor formula for depreciation duration
@@ -13,14 +13,10 @@ def annuity_factor(n, i, year_built):
         i: interest rate (e.g. 0.06 means 6 %)
 
     Returns:
-        Value of the expression :math:`\\frac{(1+i)^n i}{(1+i)^n - 1}`
-
-    Example:
-        >>> round(annuity_factor(20, 0.07), 5)
-        0.09439
+        Value of the expression :math:`\\frac{(1+i)^(1-m)}{n}`
 
     """
-    return (1+i) ** (1-(year_built-m.glob.index.min()[0])) / n
+    return (1+i) ** (1-(sup_tf_built-m.global_prop.index.min()[0])) / n
 
 
 def commodity_balance(m, tm, sit, com):
@@ -67,6 +63,17 @@ def commodity_balance(m, tm, sit, com):
                      if site == sit and commodity == com))
     return balance
 
+
+def operational_processes(unit, stf_built, stf)
+    """ Tuples for operational status of units (processes, transmissions,
+    storages) for intertemporal planning.
+
+    Only such tuples where the unit is still operational until the next
+    support time frame are valid.
+    """
+    for unit in m.units and (stf_built, stf) in m.stf:
+        if unit in m.pro:
+            ...
 
 def dsm_down_time_tuples(time, sit_com_tuple, m):
     """ Dictionary for the two time instances of DSM_down

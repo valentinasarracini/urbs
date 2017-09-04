@@ -28,7 +28,7 @@ def read_excel(input_files):
 
     Example:
         >>> data = read_excel('mimo-example.xlsx')
-        >>> data['global'].loc['CO2 limit', 'value']
+        >>> data['global_prop'].loc['CO2 limit', 'value']
         150000000
     """
 
@@ -44,55 +44,67 @@ def read_excel(input_files):
     bsp = []
     ds = []
 
-    for filename in files:
+    for filename in input_files:
         with pd.ExcelFile(filename) as xls:
-            glob = xls.parse('Global').set_index(['Property'])
-            year = glob.loc['Year']['value']
-            glob = glob.drop(['Year']).drop(['description'], axis=1)
+            global_prop = xls.parse('Global').set_index(['Property'])
+            support_timeframe = global_prop.loc['Support timeframe']['value']
+            global_prop = (
+                global_prop.drop(['Support timeframe'])
+                .drop(['description'], axis=1))
 
-            glob = pd.concat([glob], keys=[year], names=['year'])
-            gl.append(glob)
+            global_prop = pd.concat([global_prop], keys=[support_timeframe],
+                                    names=['support_timeframe'])
+            gl.append(global_prop)
             site = xls.parse('Site').set_index(['Name'])
-            site = pd.concat([site], keys=[year], names=['year'])
+            site = pd.concat([site], keys=[support_timeframe],
+                             names=['support_timeframe'])
             sit.append(site)
             commodity = (
                 xls.parse('Commodity')
                    .set_index(['Site', 'Commodity', 'Type']))
-            commodity = pd.concat([commodity], keys=[year], names=['year'])
+            commodity = pd.concat([commodity], keys=[support_timeframe],
+                                  names=['support_timeframe'])
             com.append(commodity)
             process = xls.parse('Process').set_index(['Site', 'Process'])
-            process = pd.concat([process], keys=[year], names=['year'])
+            process = pd.concat([process], keys=[support_timeframe],
+                                names=['support_timeframe'])
             pro.append(process)
             process_commodity = (
                 xls.parse('Process-Commodity')
                    .set_index(['Process', 'Commodity', 'Direction']))
-            process_commodity =
-            pd.concat([process_commodity], keys=[year], names=['year'])
+            process_commodity = pd.concat([process_commodity],
+                                          keys=[support_timeframe],
+                                          names=['support_timeframe'])
             pro_com.append(process_commodity)
             transmission = (
                 xls.parse('Transmission')
                    .set_index(['Site In', 'Site Out',
                               'Transmission', 'Commodity']))
-            transmission =
-            pd.concat([transmission], keys=[year], names=['year'])
+            transmission = pd.concat([transmission], keys=[support_timeframe],
+                                     names=['support_timeframe'])
             tra.append(transmission)
             storage = (
                 xls.parse('Storage')
                    .set_index(['Site', 'Storage', 'Commodity']))
-            storage = pd.concat([storage], keys=[year], names=['year'])
+            storage = pd.concat([storage], keys=[support_timeframe],
+                                names=['support_timeframe'])
             sto.append(storage)
             demand = xls.parse('Demand').set_index(['t'])
-            demand = pd.concat([demand], keys=[year], names=['year'])
+            demand = pd.concat([demand], keys=[support_timeframe],
+                               names=['support_timeframe'])
             dem.append(demand)
             supim = xls.parse('SupIm').set_index(['t'])
-            supim = pd.concat([supim], keys=[year], names=['year'])
+            supim = pd.concat([supim], keys=[support_timeframe],
+                              names=['support_timeframe'])
             sup.append(supim)
             buy_sell_price = xls.parse('Buy-Sell-Price').set_index(['t'])
-            buy_sell_price =
-            pd.concat([buy_sell_price], keys=[year], names=['year'])
+            buy_sell_price = pd.concat([buy_sell_price],
+                                       keys=[support_timeframe],
+                                       names=['support_timeframe'])
             bsp.append(buy_sell_price)
             dsm = xls.parse('DSM').set_index(['Site', 'Commodity'])
-            dsm = pd.concat([dsm], keys=[year], names=['year'])
+            dsm = pd.concat([dsm], keys=[support_timeframe],
+                            names=['support_timeframe'])
             ds.append(dsm)
 
         # prepare input data
@@ -102,8 +114,13 @@ def read_excel(input_files):
         supim.columns = split_columns(supim.columns, '.')
         buy_sell_price.columns = split_columns(buy_sell_price.columns, '.')
 
+        # Introduce interyear distance into dataframe m.global_prop
+        global_prop = pd.concat(gl)
+        global_prop['sup_tf'] = global_prop.index.levels[0]
+        global_prop['int_dist'] = -global_prop['sup_tf'].diff(-1).fillna(0)
+
     data = {
-        'global': pd.concat(gl),
+        'global_prop': global_prop,
         'site': pd.concat(sit),
         'commodity': pd.concat(com),
         'process': pd.concat(pro),
