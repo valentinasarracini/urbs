@@ -71,7 +71,7 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
     log_filename = os.path.join(result_dir, '{}.log').format(sce)
 
     # solve model and read results
-    optim = SolverFactory('gurobi')  # cplex, glpk, gurobi, ...
+    optim = SolverFactory('glpk')  # cplex, glpk, gurobi, ...
     optim = setup_solver(optim, logfile=log_filename)
     result = optim.solve(prob, tee=True)
 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 
     # simulation timesteps
-    (offset, length) = (1, 8759)  # time step selection
+    (offset, length) = (3000, 168)  # time step selection
     timesteps = range(offset, offset+length+1)
 
     # plotting commodities/sites
@@ -136,10 +136,10 @@ if __name__ == '__main__':
     # select scenarios to be run
     scenarios = [
                  cb.scenario_base,
-                 cb.scen_CO2limit(40000),
-                 cb.scen_1proprop('Campus', 'PVS30', 'inv-cost', 600000),
-                 cb.scen_2stoprop('Campus', 'Campus', 'Battery', 'Reservoir',
-                 'Elec', 'Heat', 'eff-in', 'discharge', 0.9, 0.9999)
+                 #cb.sc_CO2limit(40000),
+                 #cb.sc_1proprop('Campus', 'PVS30', 'inv-cost', 600000),
+                 #cb.sc_2stoprop('Campus', 'Campus', 'Battery', 'Reservoir',
+                 #'Elec', 'Heat', 'eff-in', 'discharge', 0.9, 0.9999)
     ]
 
     for scenario in scenarios:

@@ -20,18 +20,18 @@ def scenario_base(data):
 
 # Global quantities
 
-def scen_CO2limit(value):
+def sc_CO2limit(value):
     # Used to set global CO2 limit
 
     def scenario(data):
-        data['hacks'].loc['Global CO2 limit', 'Value'] = value
+        data['global_prop'].loc['CO2 limit', 'value'] = value
         return data
 
     scenario.__name__ = 'scenario_CO2-limit-' + '{:04}'.format(value)
     return scenario
 
 
-def scen_wacc(value):
+def sc_wacc(value):
     # Set wacc
 
     def scenario(data):
