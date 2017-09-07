@@ -64,16 +64,131 @@ def commodity_balance(m, tm, sit, com):
     return balance
 
 
-def operational_processes(unit, stf_built, stf)
+def op_pro_tuples(pro_tuple, m):
     """ Tuples for operational status of units (processes, transmissions,
     storages) for intertemporal planning.
 
     Only such tuples where the unit is still operational until the next
     support time frame are valid.
     """
-    for unit in m.units and (stf_built, stf) in m.stf:
-        if unit in m.pro:
-            ...
+    op_pro = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit, pro) in pro_tuple:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(sorted_stf):
+                if stf_later <= stf + m.process.loc[(stf, sit, pro),
+                                                    'depreciation']:
+                    op_pro.append((sit, pro, stf, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  stf + m.process.loc[(stf, sit, pro), 'depreciation'] and
+                  stf <= stf_later):
+                op_pro.append((sit, pro, stf, stf_later))
+            else:
+                pass
+
+    return op_pro
+
+
+def op_tra_tuples(tra_tuple, m):
+    """ s.a. op_pro_tuples
+    """
+    op_tra = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit1, sit2, tra, com) in pro_tuple:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(sorted_stf):
+                if (stf_later <=
+                    stf + m.transmission.loc[(stf, sit1, sit2, tra, com),
+                                             'depreciation']):
+                    op_tra.append((site, site, tra, com, stf, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  stf + m.transmission.loc[(stf, sit1, sit2, tra, com),
+                                           'depreciation'] and
+                  stf <= stf_later):
+                op_tra.append((sit1, sit2, tra, com, stf, stf_later))
+            else:
+                pass
+
+    return op_tra
+
+
+def op_sto_tuples(sto_tuple, m):
+    """ s.a. op_pro_tuples
+    """
+    op_sto = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit, sto, com) in sto_tuple:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(sorted_stf):
+                if stf_later <= stf + m.storage.loc[(stf, sit, sto, com),
+                                                    'depreciation']:
+                    op_sto.append((sto, sit, com, stf, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  stf +
+                  m.storage.loc[(stf, sit, sto, com), 'depreciation'] and
+                  stf <= stf_later):
+                op_sto.append((sto, sit, com, stf, stf_later))
+            else:
+                pass
+
+    return op_sto
+
+
+def rest_val_pro_tuples(pro_tuple, m):
+    """ Tuples for rest value determination of units.
+
+        The last entry represents the remaining life time after the end of the
+        modeled time frame.
+    """
+    rv_pro = []
+
+    for (stf, sit, pro) in pro_tuple:
+        if stf + m.process.loc[(stf, sit, pro), 'depreciation'] > max(m.stf):
+            r_lt = (stf + m.process.loc[(stf, sit, pro), 'depreciation'] -
+                    max(m.stf))
+            rv_pro.append((sit, pro, stf, r_lt))
+
+    return rv_pro
+
+
+def rest_val_tra_tuples(tra_tuple, m):
+    """ s.a. rest_val_pro_tuples
+    """
+    rv_tra = []
+
+    for (stf, sit1, sit2, tra, com) in tra_tuple:
+        if (stf +
+            m.transmission.loc[(stf, sit1, sit2, tra, com), 'depreciation'] >
+            max(m.stf)):
+            (r_lt =
+             stf +
+             m.transmission.loc[(stf, sit1, sit2, tra, com), 'depreciation'] -
+             max(m.stf))
+            rv_tra.append((sit1, sit2, tra, com, stf, r_lt))
+
+    return rv_tra
+
+
+def rest_val_sto_tuples(sto_tuple, m):
+    """ s.a. rest_val_pro_tuples
+    """
+    rv_sto = []
+
+    for (stf, sit, sto, com) in sto_tuple:
+        if (stf + m.storage.loc[(stf, sit, sto, com), 'depreciation'] >
+            max(m.stf)):
+            (r_lt = stf + m.storage.loc[(stf, sit, sto, com), 'depreciation'] -
+             max(m.stf))
+            rv_sto.append((sit, sto, com, stf, r_lt))
+
+    return rv_sto
+
 
 def dsm_down_time_tuples(time, sit_com_tuple, m):
     """ Dictionary for the two time instances of DSM_down

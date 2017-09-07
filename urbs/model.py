@@ -33,7 +33,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     #
     #     m.storage.loc[site, storage, commodity][attribute]
     #
-    m.global_prop = data['global']
+    m.global_prop = data['global_prop']
     m.site = data['site']
     m.commodity = data['commodity']
     m.process = data['process']
@@ -155,28 +155,28 @@ def create_model(data, timesteps=None, dt=1, dual=False):
 
     # tuple sets
     m.com_tuples = pyomo.Set(
-        within=m.sit*m.com*m.com_type,
+        within=m.stf*m.sit*m.com*m.com_type,
         initialize=m.commodity.index,
         doc='Combinations of defined commodities, e.g. (Mid,Elec,Demand)')
     m.pro_tuples = pyomo.Set(
-        within=m.sit*m.pro,
+        within=m.stf*m.sit*m.pro,
         initialize=m.process.index,
         doc='Combinations of possible processes, e.g. (North,Coal plant)')
     m.tra_tuples = pyomo.Set(
-        within=m.sit*m.sit*m.tra*m.com,
+        within=m.stf*m.sit*m.sit*m.tra*m.com,
         initialize=m.transmission.index,
         doc='Combinations of possible transmissions, e.g. '
             '(South,Mid,hvac,Elec)')
     m.sto_tuples = pyomo.Set(
-        within=m.sit*m.sto*m.com,
+        within=m.stf*m.sit*m.sto*m.com,
         initialize=m.storage.index,
         doc='Combinations of possible storage by site, e.g. (Mid,Bat,Elec)')
     m.dsm_site_tuples = pyomo.Set(
-        within=m.sit*m.com,
+        within=m.stf*m.sit*m.com,
         initialize=m.dsm.index,
         doc='Combinations of possible dsm by site, e.g. (Mid, Elec)')
     m.dsm_down_tuples = pyomo.Set(
-        within=m.tm*m.tm*m.sit*m.com,
+        within=m.stf*m.tm*m.tm*m.sit*m.com,
         initialize=[(t, tt, site, commodity)
                     for (t, tt, site, commodity)
                     in dsm_down_time_tuples(m.timesteps[1:],
@@ -186,29 +186,70 @@ def create_model(data, timesteps=None, dt=1, dual=False):
             '(5001,5003,Mid,Elec)')
 
     # tuples for operational status of technologies
-    m.op_pro = pyomo.Set(
-        within=m.pro*m.stf*m_stf,
-        initialize=[(process, stf_1, stf_2)
-                    stf_1 + ...],
-        doc='Processes built in year_1 still operational in year_2. Can be'
-            'used in all years in between excluding(!) year_2')
+    m.operational_pro_tuples = pyomo.Set(
+        within=m.sit*m.pro*m.stf*m.stf,
+        initialize=[(sit, pro, stf, stf_later)
+                    for (sit, pro, stf, stf_later)
+                    in op_pro_tuples(m.pro_tuples, m)],
+        doc='Processes that are still operational through stf_later'
+            '(and the relevant years following), if built in stf'
+            'in stf.')
+    m.operational_tra_tuples = pyomo.Set(
+        within=m.sit*m.sit*m.tra*m.com*m.stf*m.stf,
+        initialize=[(sit, sit_, tra, com, stf, stf_later)
+                    for (sit, sit_, tra, com, stf, stf_later)
+                    in op_tra_tuples(m.tra_tuples, m)],
+        doc='Transmissions that are still operational through stf_later'
+            '(and the relevant years following), if built in stf'
+            'in stf.')
+    m.operational_sto_tuples = pyomo.Set(
+        within=m.sit*m.sto*m.com*m.stf*m.stf,
+        initialize=[(sit, sto, com, stf, stf_later)
+                    for (sit, sto, com, stf, stf_later)
+                    in op_sto_tuples(m.so_tuples, m)],
+        doc='Processes that are still operational through stf_later'
+            '(and the relevant years following), if built in stf'
+            'in stf.')
+
+    # tuples for residual value of technologies
+    m.rv_pro_tuples = pyomo.Set(
+        within=m.sit*m.pro*m.stf*pyomo.NonNegativeReals,
+        initialize=[(sit, pro, stf, rv)
+                    for (sit, pro, stf, rv)
+                    in rest_val_pro_tuples(m.pro_tuples, m)],
+        doc='Processes built in stf that are operational through the last'
+            'modeled stf inlcuding the residual life time rv')
+    m.rv_tra_tuples = pyomo.Set(
+        within=m.sit*m.sit*m.tra**m.com*m.stf*pyomo.NonNegativeReals,
+        initialize=[(sit, sit_, tra, com, stf, rv)
+                    for (sit, sit_, tra, com, stf, rv)
+                    in rest_val_tra_tuples(m.pro_tuples, m)],
+        doc='Transmissions built in stf that are operational through the last'
+            'modeled stf inlcuding the residual life time rv')
+    m.rv_sto_tuples = pyomo.Set(
+        within=m.sit*m.sto*m.com*m.stf*pyomo.NonNegativeReals,
+        initialize=[(sit, sto, com, stf, rv)
+                    for (sit, sto, com, stf, rv)
+                    in rest_val_sto_tuples(m.pro_tuples, m)],
+        doc='Storages built in stf that are operational through the last'
+            'modeled stf inlcuding the residual life time rv')
 
     # process tuples for area rule
     m.pro_area_tuples = pyomo.Set(
-        within=m.sit*m.pro,
+        within=m.stf*m.sit*m.pro,
         initialize=m.proc_area.index,
         doc='Processes and Sites with area Restriction')
 
     # process input/output
     m.pro_input_tuples = pyomo.Set(
-        within=m.sit*m.pro*m.com,
+        within=m.stf*m.sit*m.pro*m.com,
         initialize=[(site, process, commodity)
                     for (site, process) in m.pro_tuples
                     for (pro, commodity) in m.r_in.index
                     if process == pro],
         doc='Commodities consumed by process by site, e.g. (Mid,PV,Solar)')
     m.pro_output_tuples = pyomo.Set(
-        within=m.sit*m.pro*m.com,
+        within=m.stf*m.sit*m.pro*m.com,
         initialize=[(site, process, commodity)
                     for (site, process) in m.pro_tuples
                     for (pro, commodity) in m.r_out.index
@@ -217,7 +258,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
 
     # process tuples for maximum gradient feature
     m.pro_maxgrad_tuples = pyomo.Set(
-        within=m.sit*m.pro,
+        within=m.stf*m.sit*m.pro,
         initialize=[(sit, pro)
                     for (sit, pro) in m.pro_tuples
                     if m.process.loc[sit, pro]['max-grad'] < 1.0 / dt],
@@ -225,7 +266,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
 
     # process tuples for startup & partial feature
     m.pro_partial_tuples = pyomo.Set(
-        within=m.sit*m.pro,
+        within=m.stf*m.sit*m.pro,
         initialize=[(site, process)
                     for (site, process) in m.pro_tuples
                     for (pro, _) in m.r_in_min_fraction.index
@@ -233,7 +274,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         doc='Processes with partial input')
 
     m.pro_partial_input_tuples = pyomo.Set(
-        within=m.sit*m.pro*m.com,
+        within=m.stf*m.sit*m.pro*m.com,
         initialize=[(site, process, commodity)
                     for (site, process) in m.pro_partial_tuples
                     for (pro, commodity) in m.r_in_min_fraction.index

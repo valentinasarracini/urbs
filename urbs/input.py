@@ -114,13 +114,8 @@ def read_excel(input_files):
         supim.columns = split_columns(supim.columns, '.')
         buy_sell_price.columns = split_columns(buy_sell_price.columns, '.')
 
-        # Introduce interyear distance into dataframe m.global_prop
-        global_prop = pd.concat(gl)
-        global_prop['sup_tf'] = global_prop.index.levels[0]
-        global_prop['int_dist'] = -global_prop['sup_tf'].diff(-1).fillna(0)
-
     data = {
-        'global_prop': global_prop,
+        'global_prop': pd.concat(gl),
         'site': pd.concat(sit),
         'commodity': pd.concat(com),
         'process': pd.concat(pro),
