@@ -150,9 +150,6 @@ def create_model(data, timesteps=None, dt=1, dual=False):
                     'Purchase', 'Startup', 'Environmental'],
         doc='Set of cost types (hard-coded)')
 
-    # units (union of process, transmission and storage)
-    m.units = m.pro|m.tra|m.sto
-
     # tuple sets
     m.com_tuples = pyomo.Set(
         within=m.stf*m.sit*m.com*m.com_type,
@@ -206,33 +203,33 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.sit*m.sto*m.com*m.stf*m.stf,
         initialize=[(sit, sto, com, stf, stf_later)
                     for (sit, sto, com, stf, stf_later)
-                    in op_sto_tuples(m.so_tuples, m)],
+                    in op_sto_tuples(m.sto_tuples, m)],
         doc='Processes that are still operational through stf_later'
             '(and the relevant years following), if built in stf'
             'in stf.')
 
     # tuples for residual value of technologies
     m.rv_pro_tuples = pyomo.Set(
-        within=m.sit*m.pro*m.stf*pyomo.NonNegativeReals,
-        initialize=[(sit, pro, stf, rv)
-                    for (sit, pro, stf, rv)
+        within=m.sit*m.pro*m.stf,
+        initialize=[(sit, pro, stf)
+                    for (sit, pro, stf)
                     in rest_val_pro_tuples(m.pro_tuples, m)],
         doc='Processes built in stf that are operational through the last'
-            'modeled stf inlcuding the residual life time rv')
+            'modeled stf')
     m.rv_tra_tuples = pyomo.Set(
-        within=m.sit*m.sit*m.tra**m.com*m.stf*pyomo.NonNegativeReals,
-        initialize=[(sit, sit_, tra, com, stf, rv)
-                    for (sit, sit_, tra, com, stf, rv)
-                    in rest_val_tra_tuples(m.pro_tuples, m)],
+        within=m.sit*m.sit*m.tra*m.com*m.stf,
+        initialize=[(sit, sit_, tra, com, stf)
+                    for (sit, sit_, tra, com, stf)
+                    in rest_val_tra_tuples(m.tra_tuples, m)],
         doc='Transmissions built in stf that are operational through the last'
-            'modeled stf inlcuding the residual life time rv')
+            'modeled stf')
     m.rv_sto_tuples = pyomo.Set(
-        within=m.sit*m.sto*m.com*m.stf*pyomo.NonNegativeReals,
-        initialize=[(sit, sto, com, stf, rv)
-                    for (sit, sto, com, stf, rv)
-                    in rest_val_sto_tuples(m.pro_tuples, m)],
+        within=m.sit*m.sto*m.com*m.stf,
+        initialize=[(sit, sto, com, stf)
+                    for (sit, sto, com, stf)
+                    in rest_val_sto_tuples(m.sto_tuples, m)],
         doc='Storages built in stf that are operational through the last'
-            'modeled stf inlcuding the residual life time rv')
+            'modeled stf')
 
     # process tuples for area rule
     m.pro_area_tuples = pyomo.Set(

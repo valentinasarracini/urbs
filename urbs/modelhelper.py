@@ -97,14 +97,14 @@ def op_tra_tuples(tra_tuple, m):
     op_tra = []
     sorted_stf = sorted(list(m.stf))
 
-    for (stf, sit1, sit2, tra, com) in pro_tuple:
+    for (stf, sit1, sit2, tra, com) in tra_tuple:
         for stf_later in sorted_stf:
             index_helper = sorted_stf.index(stf_later)
             if stf_later == max(sorted_stf):
                 if (stf_later <=
                     stf + m.transmission.loc[(stf, sit1, sit2, tra, com),
                                              'depreciation']):
-                    op_tra.append((site, site, tra, com, stf, stf_later))
+                    op_tra.append((sit1, sit2, tra, com, stf, stf_later))
             elif (sorted_stf[index_helper+1] <=
                   stf + m.transmission.loc[(stf, sit1, sit2, tra, com),
                                            'depreciation'] and
@@ -128,12 +128,12 @@ def op_sto_tuples(sto_tuple, m):
             if stf_later == max(sorted_stf):
                 if stf_later <= stf + m.storage.loc[(stf, sit, sto, com),
                                                     'depreciation']:
-                    op_sto.append((sto, sit, com, stf, stf_later))
+                    op_sto.append((sit, sto, com, stf, stf_later))
             elif (sorted_stf[index_helper+1] <=
                   stf +
                   m.storage.loc[(stf, sit, sto, com), 'depreciation'] and
                   stf <= stf_later):
-                op_sto.append((sto, sit, com, stf, stf_later))
+                op_sto.append((sit, sto, com, stf, stf_later))
             else:
                 pass
 
@@ -150,9 +150,7 @@ def rest_val_pro_tuples(pro_tuple, m):
 
     for (stf, sit, pro) in pro_tuple:
         if stf + m.process.loc[(stf, sit, pro), 'depreciation'] > max(m.stf):
-            r_lt = (stf + m.process.loc[(stf, sit, pro), 'depreciation'] -
-                    max(m.stf))
-            rv_pro.append((sit, pro, stf, r_lt))
+            rv_pro.append((sit, pro, stf))
 
     return rv_pro
 
@@ -166,11 +164,7 @@ def rest_val_tra_tuples(tra_tuple, m):
         if (stf +
             m.transmission.loc[(stf, sit1, sit2, tra, com), 'depreciation'] >
             max(m.stf)):
-            (r_lt =
-             stf +
-             m.transmission.loc[(stf, sit1, sit2, tra, com), 'depreciation'] -
-             max(m.stf))
-            rv_tra.append((sit1, sit2, tra, com, stf, r_lt))
+            rv_tra.append((sit1, sit2, tra, com, stf))
 
     return rv_tra
 
@@ -183,9 +177,7 @@ def rest_val_sto_tuples(sto_tuple, m):
     for (stf, sit, sto, com) in sto_tuple:
         if (stf + m.storage.loc[(stf, sit, sto, com), 'depreciation'] >
             max(m.stf)):
-            (r_lt = stf + m.storage.loc[(stf, sit, sto, com), 'depreciation'] -
-             max(m.stf))
-            rv_sto.append((sit, sto, com, stf, r_lt))
+            rv_sto.append((sit, sto, com, stf))
 
     return rv_sto
 
