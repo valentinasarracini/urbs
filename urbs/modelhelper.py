@@ -202,12 +202,12 @@ def dsm_down_time_tuples(time, sit_com_tuple, m):
     lb = min(time)
     time_list = []
 
-    for (site, commodity) in sit_com_tuple:
+    for (stf, site, commodity) in sit_com_tuple:
         for step1 in time:
             for step2 in range(step1 - delay[site, commodity],
                                step1 + delay[site, commodity] + 1):
                 if lb <= step2 <= ub:
-                    time_list.append((step1, step2, site, commodity))
+                    time_list.append((stf, step1, step2, site, commodity))
 
     return time_list
 

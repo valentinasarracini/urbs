@@ -54,9 +54,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
 
     # process areas
     m.proc_area = m.process['area-per-cap']
-    m.sit_area = m.site['area']
-    m.proc_area = m.proc_area[m.proc_area >= 0]
-    m.sit_area = m.sit_area[m.sit_area >= 0]
+    m.proc_area = m.proc_area.dropna()
 
     # operational process for intertemporal planning
 
@@ -66,7 +64,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     # b) numeric (implicitely, as NaN or NV compare false against 0)
     m.r_in_min_fraction = m.process_commodity.xs('In', level='Direction')
     m.r_in_min_fraction = m.r_in_min_fraction['ratio-min']
-    m.r_in_min_fraction = m.r_in_min_fraction[m.r_in_min_fraction > 0]
+    m.r_in_min_fraction = m.r_in_min_fraction.dropna()
 
     # derive annuity factor from WACC and depreciation duration
     m.process['annuity-factor'] = annuity_factor(
@@ -97,7 +95,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.t,
         initialize=m.timesteps[1:],
         ordered=True,
-        doc='Set of modelled timesteps')
+        doc='Set of modelled timesteps within one stf')
 
     # modelled Demand Side Management time steps (downshift):
     # downshift effective in tt to compensate for upshift in t
@@ -154,33 +152,34 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.com_tuples = pyomo.Set(
         within=m.stf*m.sit*m.com*m.com_type,
         initialize=m.commodity.index,
-        doc='Combinations of defined commodities, e.g. (Mid,Elec,Demand)')
+        doc='Combinations of defined commodities, e.g. (2020,Mid,Elec,Demand)')
     m.pro_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro,
         initialize=m.process.index,
-        doc='Combinations of possible processes, e.g. (North,Coal plant)')
+        doc='Combinations of possible processes, e.g. (2020,North,Coal plant)')
     m.tra_tuples = pyomo.Set(
         within=m.stf*m.sit*m.sit*m.tra*m.com,
         initialize=m.transmission.index,
         doc='Combinations of possible transmissions, e.g. '
-            '(South,Mid,hvac,Elec)')
+            '(2020,South,Mid,hvac,Elec)')
     m.sto_tuples = pyomo.Set(
         within=m.stf*m.sit*m.sto*m.com,
         initialize=m.storage.index,
-        doc='Combinations of possible storage by site, e.g. (Mid,Bat,Elec)')
+        doc='Combinations of possible storage by site,'
+            'e.g. (2020,Mid,Bat,Elec)')
     m.dsm_site_tuples = pyomo.Set(
         within=m.stf*m.sit*m.com,
         initialize=m.dsm.index,
-        doc='Combinations of possible dsm by site, e.g. (Mid, Elec)')
+        doc='Combinations of possible dsm by site, e.g. (2020, Mid, Elec)')
     m.dsm_down_tuples = pyomo.Set(
         within=m.stf*m.tm*m.tm*m.sit*m.com,
-        initialize=[(t, tt, site, commodity)
-                    for (t, tt, site, commodity)
+        initialize=[(stf, t, tt, site, commodity)
+                    for (stf, t, tt, site, commodity)
                     in dsm_down_time_tuples(m.timesteps[1:],
                                             m.dsm_site_tuples,
                                             m)],
         doc='Combinations of possible dsm_down combinations, e.g. '
-            '(5001,5003,Mid,Elec)')
+            '(2020,5001,5003,Mid,Elec)')
 
     # tuples for operational status of technologies
     m.operational_pro_tuples = pyomo.Set(
@@ -240,43 +239,45 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     # process input/output
     m.pro_input_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro*m.com,
-        initialize=[(site, process, commodity)
-                    for (site, process) in m.pro_tuples
-                    for (pro, commodity) in m.r_in.index
+        initialize=[(stf, site, process, commodity)
+                    for (stf, site, process) in m.pro_tuples
+                    for (stf, pro, commodity) in m.r_in.index
                     if process == pro],
-        doc='Commodities consumed by process by site, e.g. (Mid,PV,Solar)')
+        doc='Commodities consumed by process by site,'
+            'e.g. (2020,Mid,PV,Solar)')
     m.pro_output_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro*m.com,
-        initialize=[(site, process, commodity)
-                    for (site, process) in m.pro_tuples
-                    for (pro, commodity) in m.r_out.index
+        initialize=[(stf, site, process, commodity)
+                    for (stf, site, process) in m.pro_tuples
+                    for (stf, pro, commodity) in m.r_out.index
                     if process == pro],
-        doc='Commodities produced by process by site, e.g. (Mid,PV,Elec)')
+        doc='Commodities produced by process by site, e.g. (2020,Mid,PV,Elec)')
 
     # process tuples for maximum gradient feature
     m.pro_maxgrad_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro,
-        initialize=[(sit, pro)
-                    for (sit, pro) in m.pro_tuples
-                    if m.process.loc[sit, pro]['max-grad'] < 1.0 / dt],
+        initialize=[(stf, sit, pro)
+                    for (stf, sit, pro) in m.pro_tuples
+                    if m.process.loc[stf, sit, pro]['max-grad'] < 1.0 / dt],
         doc='Processes with maximum gradient smaller than timestep length')
 
     # process tuples for startup & partial feature
     m.pro_partial_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro,
-        initialize=[(site, process)
-                    for (site, process) in m.pro_tuples
+        initialize=[(stf, site, process)
+                    for (stf, site, process) in m.pro_tuples
                     for (pro, _) in m.r_in_min_fraction.index
                     if process == pro],
         doc='Processes with partial input')
 
     m.pro_partial_input_tuples = pyomo.Set(
         within=m.stf*m.sit*m.pro*m.com,
-        initialize=[(site, process, commodity)
-                    for (site, process) in m.pro_partial_tuples
-                    for (pro, commodity) in m.r_in_min_fraction.index
+        initialize=[(stf, site, process, commodity)
+                    for (stf, site, process) in m.pro_partial_tuples
+                    for (stf, pro, commodity) in m.r_in_min_fraction.index
                     if process == pro],
-        doc='Commodities with partial input ratio, e.g. (Mid,Coal PP,Coal)')
+        doc='Commodities with partial input ratio,'
+            'e.g. (2020,Mid,Coal PP,Coal)')
 
     # commodity type subsets
     m.com_supim = pyomo.Set(
