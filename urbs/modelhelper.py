@@ -19,7 +19,7 @@ def annuity_factor(n, i, sup_tf_built):
     return (1+i) ** (1-(sup_tf_built-m.global_prop.index.min()[0])) / n
 
 
-def commodity_balance(m, tm, sit, com):
+def commodity_balance(m, tm, stf, sit, com):
     """Calculate commodity balance at given timestep.
 
     For a given commodity co and timestep tm, calculate the balance of
@@ -37,30 +37,30 @@ def commodity_balance(m, tm, sit, com):
         balance: net value of consumed (positive) or provided (negative) power
 
     """
-    balance = (sum(m.e_pro_in[(tm, site, process, com)]
+    balance = (sum(m.e_pro_in[(tm, stframe, site, process, com)]
                    # usage as input for process increases balance
-                   for site, process in m.pro_tuples
-                   if site == sit and (process, com) in m.r_in_dict)
-               - sum(m.e_pro_out[(tm, site, process, com)]
+                   for stframe, site, process in m.pro_tuples
+                   if site == sit and stframe == stf and (stframe, process, com) in m.r_in_dict)
+               - sum(m.e_pro_out[(tm, stframe, site, process, com)]
                      # output from processes decreases balance
-                     for site, process in m.pro_tuples
-                     if site == sit and (process, com) in m.r_out_dict)
-               + sum(m.e_tra_in[(tm, site_in, site_out, transmission, com)]
+                     for stframe, site, process in m.pro_tuples
+                     if site == sit and stframe == stf and (stframe, process, com) in m.r_out_dict)
+               + sum(m.e_tra_in[(tm, stframe, site_in, site_out, transmission, com)]
                      # exports increase balance
-                     for site_in, site_out, transmission, commodity
+                     for stframe, site_in, site_out, transmission, commodity
                      in m.tra_tuples
-                     if site_in == sit and commodity == com)
-               - sum(m.e_tra_out[(tm, site_in, site_out, transmission, com)]
+                     if site_in == sit and stframe == stf and commodity == com)
+               - sum(m.e_tra_out[(tm, stframe, site_in, site_out, transmission, com)]
                      # imports decrease balance
-                     for site_in, site_out, transmission, commodity
+                     for stframe, site_in, site_out, transmission, commodity
                      in m.tra_tuples
-                     if site_out == sit and commodity == com)
-               + sum(m.e_sto_in[(tm, site, storage, com)] -
-                     m.e_sto_out[(tm, site, storage, com)]
+                     if site_out == sit and stframe == stf and commodity == com)
+               + sum(m.e_sto_in[(tm, stframe, site, storage, com)] -
+                     m.e_sto_out[(tm, stframe, site, storage, com)]
                      # usage as input for storage increases consumption
                      # output from storage decreases consumption
-                     for site, storage, commodity in m.sto_tuples
-                     if site == sit and commodity == com))
+                     for stframe, site, storage, commodity in m.sto_tuples
+                     if site == sit and stframe == stf and commodity == com))
     return balance
 
 
@@ -180,6 +180,77 @@ def rest_val_sto_tuples(sto_tuple, m):
             rv_sto.append((sit, sto, com, stf))
 
     return rv_sto
+
+
+def inst_pro_tuples(m):
+    """ Tuples for operational status of already installed units
+    (processes, transmissions, storages) for intertemporal planning.
+
+    Only such tuples where the unit is still operational until the next
+    support time frame are valid.
+    """
+    inst_pro = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit, pro) in m.inst_pro.index:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(m.stf):
+                if (stf_later <=
+                    min(m.stf) + m.process.loc[(stf, sit, pro),
+                                               'lifetime']):
+                    inst_pro.append((sit, pro, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  min(m.stf) + m.process.loc[(stf, sit, pro),
+                                             'lifetime']):
+                inst_pro.append((sit, pro, stf_later))
+
+    return inst_pro
+
+
+def inst_tra_tuples(m):
+    """ s.a. inst_pro_tuples
+    """
+    inst_tra = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit1, sit2, tra, com) in m.inst_tra.index:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(m.stf):
+                if (stf_later <=
+                    min(m.stf) +
+                    m.transmission.loc[(stf, sit1, sit2, tra, com),
+                                       'lifetime']):
+                    inst_tra.append((sit1, sit2, tra, com, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  min(m.stf) + m.transmission.loc[(stf, sit1, sit2, tra, com),
+                                                  'lifetime']):
+                inst_tra.append((sit1, sit2, tra, com, stf_later))
+
+    return inst_tra
+
+
+def inst_sto_tuples(m):
+    """ s.a. inst_pro_tuples
+    """
+    inst_sto = []
+    sorted_stf = sorted(list(m.stf))
+
+    for (stf, sit, sto, com) in m.inst_sto.index:
+        for stf_later in sorted_stf:
+            index_helper = sorted_stf.index(stf_later)
+            if stf_later == max(m.stf):
+                if (stf_later <=
+                    min(m.stf) + m.storage.loc[(stf, sit, sto, com),
+                                               'lifetime']):
+                    inst_sto.append((sit, sto, com, stf_later))
+            elif (sorted_stf[index_helper+1] <=
+                  min(m.stf) + m.storage.loc[(stf, sit, sto, com),
+                                             'lifetime']):
+                inst_sto.append((sit, sto, com, stf_later))
+
+    return inst_sto
 
 
 def dsm_down_time_tuples(time, sit_com_tuple, m):
@@ -360,7 +431,7 @@ def extract_number_str(str_in):
         return float(str_num)
 
 
-def search_sell_buy_tuple(instance, sit_in, pro_in, coin):
+def search_sell_buy_tuple(instance, stf, sit_in, pro_in, coin):
     """ Return the equivalent sell-process for a given buy-process.
 
     Args:
@@ -375,19 +446,19 @@ def search_sell_buy_tuple(instance, sit_in, pro_in, coin):
     pro_output_tuples = list(instance.pro_output_tuples.value)
     pro_input_tuples = list(instance.pro_input_tuples.value)
     # search the output commodities for the "buy" process
-    # buy_out = (site,output_commodity)
-    buy_out = set([(x[0], x[2])
+    # buy_out = (stf, site, output_commodity)
+    buy_out = set([(x[0], x[1], x[3])
                    for x in pro_output_tuples
-                   if x[1] == pro_in])
+                   if x[2] == pro_in])
     # search the sell process for the output_commodity from the buy process
     sell_output_tuple = ([x
                           for x in pro_output_tuples
-                          if x[2] in instance.com_sell])
+                          if x[3] in instance.com_sell])
     for k in range(len(sell_output_tuple)):
-        sell_pro = sell_output_tuple[k][1]
-        sell_in = set([(x[0], x[2])
+        sell_pro = sell_output_tuple[k][2]
+        sell_in = set([(x[0], x[1], x[3])
                        for x in pro_input_tuples
-                       if x[1] == sell_pro])
+                       if x[2] == sell_pro])
         # check: buy - commodity == commodity - sell; for a site
         if not(sell_in.isdisjoint(buy_out)):
             return sell_pro
