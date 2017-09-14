@@ -293,7 +293,7 @@ def dsm_time_tuples(timestep, time, delay):
 
     Returns:
         A list of possible time tuples of a current time step in a specific
-        site and commodity
+        stf, site and commodity
     """
 
     ub = max(time)

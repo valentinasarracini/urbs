@@ -901,7 +901,7 @@ def def_process_capacity_rule(m, stf, sit, pro):
             for stf_built in m.stf
             if (sit, pro, stf_built, stf) in m.operational_pro_tuples) +
             sum(m.process.loc[stf, sit, pro]['inst-cap']
-                for (sit, pro, stf_built) in m.inst_pro_tuples))
+            for (sit, pro, stf) in m.inst_pro_tuples))
 
 
 # process input power == process throughput * input ratio
@@ -1017,130 +1017,103 @@ def res_sell_buy_symmetry_rule(m, stf, sit_in, pro_in, coin):
         return pyomo.Constraint.Skip
 
 
-# transmission
-
-# transmission capacity == new capacity + existing capacity
-def def_transmission_capacity_rule(m, sin, sout, tra, com):
-    return (m.cap_tra[sin, sout, tra, com] ==
-            m.cap_tra_new[sin, sout, tra, com] +
-            m.transmission.loc[sin, sout, tra, com]['inst-cap'])
-
-
-# transmission output == transmission input * efficiency
-def def_transmission_output_rule(m, tm, sin, sout, tra, com):
-    return (m.e_tra_out[tm, sin, sout, tra, com] ==
-            m.e_tra_in[tm, sin, sout, tra, com] *
-            m.transmission.loc[sin, sout, tra, com]['eff'])
-
-
-# transmission input <= transmission capacity
-def res_transmission_input_by_capacity_rule(m, tm, sin, sout, tra, com):
-    return (m.e_tra_in[tm, sin, sout, tra, com] <=
-            m.cap_tra[sin, sout, tra, com])
-
-
-# lower bound <= transmission capacity <= upper bound
-def res_transmission_capacity_rule(m, sin, sout, tra, com):
-    return (m.transmission.loc[sin, sout, tra, com]['cap-lo'],
-            m.cap_tra[sin, sout, tra, com],
-            m.transmission.loc[sin, sout, tra, com]['cap-up'])
-
-
-# transmission capacity from A to B == transmission capacity from B to A
-def res_transmission_symmetry_rule(m, sin, sout, tra, com):
-    return m.cap_tra[sin, sout, tra, com] == m.cap_tra[sout, sin, tra, com]
-
-
 # storage
 
 # storage content in timestep [t] == storage content[t-1] * (1-discharge)
 # + newly stored energy * input efficiency
 # - retrieved energy / output efficiency
-def def_storage_state_rule(m, t, sit, sto, com):
-    return (m.e_sto_con[t, sit, sto, com] ==
-            m.e_sto_con[t-1, sit, sto, com] *
-            (1 - m.storage.loc[sit, sto, com]['discharge']) +
-            m.e_sto_in[t, sit, sto, com] *
-            m.storage.loc[sit, sto, com]['eff-in'] * m.dt -
-            m.e_sto_out[t, sit, sto, com] /
-            m.storage.loc[sit, sto, com]['eff-out'] * m.dt)
+def def_storage_state_rule(m, t, stf, sit, sto, com):
+    return (m.e_sto_con[t, stf, sit, sto, com] ==
+            m.e_sto_con[t-1, stf, sit, sto, com] *
+            (1 - m.storage.loc[stf, sit, sto, com]['discharge']) +
+            m.e_sto_in[t, stf, sit, sto, com] *
+            m.storage.loc[stf, sit, sto, com]['eff-in'] * m.dt -
+            m.e_sto_out[t, stf, sit, sto, com] /
+            m.storage.loc[stf, sit, sto, com]['eff-out'] * m.dt)
 
 
-# storage power == new storage power + existing storage power
-def def_storage_power_rule(m, sit, sto, com):
-    return (m.cap_sto_p[sit, sto, com] ==
-            m.cap_sto_p_new[sit, sto, com] +
-            m.storage.loc[sit, sto, com]['inst-cap-p'])
+def def_storage_power_rule(m, stf, sit, sto, com):
+    return (m.cap_sto_p[stf, sit, sto, com] ==
+            sum(m.cap_sto_p_new[stf_built, sit, sto, com]
+            for stf_built in m.stf
+            if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples) +
+            sum(m.storage.loc[stf, sit, sto, com]['inst-cap-p']
+            for (sit, sto, com, stf) in m.inst_sto_tuples))
 
 
 # storage capacity == new storage capacity + existing storage capacity
-def def_storage_capacity_rule(m, sit, sto, com):
-    return (m.cap_sto_c[sit, sto, com] ==
-            m.cap_sto_c_new[sit, sto, com] +
-            m.storage.loc[sit, sto, com]['inst-cap-c'])
+def def_storage_capacity_rule(m, stf, sit, sto, com):
+    return (m.cap_sto_c[stf, sit, sto, com] ==
+            sum(m.cap_sto_c_new[stf_built, sit, sto, com]
+            for stf_built in m.stf
+            if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples) +
+            sum(m.storage.loc[stf, sit, sto, com]['inst-cap-c']
+            for (sit, sto, com, stf) in m.inst_sto_tuples))
 
 
 # storage input <= storage power
-def res_storage_input_by_power_rule(m, t, sit, sto, com):
-    return m.e_sto_in[t, sit, sto, com] <= m.cap_sto_p[sit, sto, com]
+def res_storage_input_by_power_rule(m, t, stf, sit, sto, com):
+    return m.e_sto_in[t, stf, sit, sto, com] <= m.cap_sto_p[stf, sit, sto, com]
 
 
 # storage output <= storage power
-def res_storage_output_by_power_rule(m, t, sit, sto, co):
-    return m.e_sto_out[t, sit, sto, co] <= m.cap_sto_p[sit, sto, co]
+def res_storage_output_by_power_rule(m, t, stf, sit, sto, co):
+    return m.e_sto_out[t, stf, sit, sto, co] <= m.cap_sto_p[stf, sit, sto, co]
 
 
 # storage content <= storage capacity
-def res_storage_state_by_capacity_rule(m, t, sit, sto, com):
-    return m.e_sto_con[t, sit, sto, com] <= m.cap_sto_c[sit, sto, com]
+def res_storage_state_by_capacity_rule(m, t, stf, sit, sto, com):
+    return (m.e_sto_con[t, stf, sit, sto, com] <=
+            m.cap_sto_c[stf, sit, sto, com])
 
 
 # lower bound <= storage power <= upper bound
-def res_storage_power_rule(m, sit, sto, com):
-    return (m.storage.loc[sit, sto, com]['cap-lo-p'],
-            m.cap_sto_p[sit, sto, com],
-            m.storage.loc[sit, sto, com]['cap-up-p'])
+def res_storage_power_rule(m, stf, sit, sto, com):
+    return (m.storage.loc[stf, sit, sto, com]['cap-lo-p'],
+            m.cap_sto_p[stf, sit, sto, com],
+            m.storage.loc[stf, sit, sto, com]['cap-up-p'])
 
 
 # lower bound <= storage capacity <= upper bound
-def res_storage_capacity_rule(m, sit, sto, com):
-    return (m.storage.loc[sit, sto, com]['cap-lo-c'],
-            m.cap_sto_c[sit, sto, com],
-            m.storage.loc[sit, sto, com]['cap-up-c'])
+def res_storage_capacity_rule(m, stf, sit, sto, com):
+    return (m.storage.loc[stf, sit, sto, com]['cap-lo-c'],
+            m.cap_sto_c[stf, sit, sto, com],
+            m.storage.loc[stf, sit, sto, com]['cap-up-c'])
 
 
 # initialization of storage content in first timestep t[1]
 # forced minimun  storage content in final timestep t[len(m.t)]
 # content[t=1] == storage capacity * fraction <= content[t=final]
-def res_initial_and_final_storage_state_rule(m, t, sit, sto, com):
+def res_initial_and_final_storage_state_rule(m, t, stf, sit, sto, com):
     if t == m.t[1]:  # first timestep (Pyomo uses 1-based indexing)
-        return (m.e_sto_con[t, sit, sto, com] ==
-                m.cap_sto_c[sit, sto, com] *
-                m.storage.loc[sit, sto, com]['init'])
+        return (m.e_sto_con[t, stf, sit, sto, com] ==
+                m.cap_sto_c[stf, sit, sto, com] *
+                m.storage.loc[stf, sit, sto, com]['init'])
     elif t == m.t[len(m.t)]:  # last timestep
-        return (m.e_sto_con[t, sit, sto, com] >=
-                m.cap_sto_c[sit, sto, com] *
-                m.storage.loc[sit, sto, com]['init'])
+        return (m.e_sto_con[t, stf, sit, sto, com] >=
+                m.cap_sto_c[stf, sit, sto, com] *
+                m.storage.loc[stf, sit, sto, com]['init'])
     else:
         return pyomo.Constraint.Skip
 
 
 # total CO2 output <= Global CO2 limit
-def res_global_co2_limit_rule(m):
-    if math.isinf(m.global_prop.loc['CO2 limit', 'value']):
+def res_global_co2_limit_rule(m, stf):
+    if math.isinf(m.global_prop.loc[stf, 'CO2 limit', 'value']):
         return pyomo.Constraint.Skip
-    elif m.global_prop.loc['CO2 limit', 'value'] > 0:
+    elif m.global_prop.loc[stf, 'CO2 limit', 'value'] > 0:
         co2_output_sum = 0
         for tm in m.tm:
             for sit in m.sit:
                 # minus because negative commodity_balance represents creation
                 # of that commodity.
-                co2_output_sum += (- commodity_balance(m, tm, sit, 'CO2') *
+                co2_output_sum += (- commodity_balance(m, tm,
+                                                       stf, sit, 'CO2') *
                                    m.dt)
 
         # scaling to annual output (cf. definition of m.weight)
         co2_output_sum *= m.weight
-        return (co2_output_sum <= m.global_prop.loc['CO2 limit', 'value'])
+        return (co2_output_sum <= m.global_prop.loc[stf, 'CO2 limit', 'value'])
     else:
         return pyomo.Constraint.Skip
 
