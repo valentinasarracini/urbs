@@ -46,6 +46,17 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.timesteps = timesteps
     m.dsm = data['dsm']
 
+    # Create columns of support timeframe values
+    m.commodity['support_timeframe'] = (m.commodity.index.
+                                        get_level_values('support_timeframe'))
+    m.process['support_timeframe'] = (m.process.index.
+                                      get_level_values('support_timeframe'))
+    m.transmission['support_timeframe'] = (m.transmission.index.
+                                           get_level_values
+                                           ('support_timeframe'))
+    m.storage['support_timeframe'] = (m.storage.index.
+                                      get_level_values('support_timeframe'))
+
     # process input/output ratios
     m.r_in = m.process_commodity.xs('In', level='Direction')['ratio']
     m.r_out = m.process_commodity.xs('Out', level='Direction')['ratio']
@@ -72,16 +83,39 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.r_in_min_fraction = m.r_in_min_fraction['ratio-min']
     m.r_in_min_fraction = m.r_in_min_fraction.dropna()
 
-    # derive annuity factor from WACC and depreciation duration
-    m.process['annuity-factor'] = annuity_factor(
+    # derive invest factor from WACC, depreciation and discount untility
+    m.process['invcost-factor'] = invcost_factor(
+        m,
         m.process['depreciation'],
-        m.process['wacc'], m.process.index.levels[0][0])
-    m.transmission['annuity-factor'] = annuity_factor(
+        m.process['wacc'], m.process['support_timeframe'])
+    m.transmission['invcost-factor'] = invcost_factor(
+        m,
         m.transmission['depreciation'],
-        m.transmission['wacc'], m.transmission.index.levels[0][0])
-    m.storage['annuity-factor'] = annuity_factor(
+        m.transmission['wacc'], m.transmission['support_timeframe'])
+    m.storage['invcost-factor'] = invcost_factor(
+        m,
         m.storage['depreciation'],
-        m.storage['wacc'], m.storage.index.levels[0][0])
+        m.storage['wacc'], m.storage['support_timeframe'])
+
+    # derive rest value factor from WACC, depreciation and discount untility
+    m.process['rv-factor'] = rv_factor(
+        m,
+        m.process['depreciation'],
+        m.process['wacc'], m.process['support_timeframe'])
+    m.process.loc[(m.process['rv-factor'] < 0) |
+                  (m.process['rv-factor'].isnull()), 'rv-factor'] = 0
+    m.transmission['rv-factor'] = rv_factor(
+        m,
+        m.transmission['depreciation'],
+        m.transmission['wacc'], m.transmission['support_timeframe'])
+    m.transmission.loc[(m.transmission['rv-factor'] < 0) |
+                       (m.transmission['rv-factor'].isnull()), 'rv-factor'] = 0
+    m.storage['rv-factor'] = rv_factor(
+        m,
+        m.storage['depreciation'],
+        m.storage['wacc'], m.storage['support_timeframe'])
+    m.storage.loc[(m.storage['rv-factor'] < 0) |
+                  (m.storage['rv-factor'].isnull()), 'rv-factor'] = 0
 
     # Sets
     # ====
@@ -155,6 +189,10 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         doc='Set of cost types (hard-coded)')
 
     # tuple sets
+    m.sit_tuples = pyomo.Set(
+        within=m.stf*m.sit,
+        initialize=m.site.index,
+        doc='Combinations of support imeframes and sites')
     m.com_tuples = pyomo.Set(
         within=m.stf*m.sit*m.com*m.com_type,
         initialize=m.commodity.index,
@@ -247,13 +285,13 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.sit*m.sit*m.tra*m.com*m.stf,
         initialize=[(sit, sit_, tra, com, stf)
                     for (sit, sit_, tra, com, stf)
-                    in inst_tra_tuples(m.tra_tuples, m)],
+                    in inst_tra_tuples(m)],
         doc='Installed transmissions that are still operational through stf')
     m.inst_sto_tuples = pyomo.Set(
         within=m.sit*m.sto*m.com*m.stf,
         initialize=[(sit, sto, com, stf)
                     for (sit, sto, com, stf)
-                    in inst_sto_tuples(m.sto_tuples, m)],
+                    in inst_sto_tuples(m)],
         doc='Installed storages that are still operational through stf')
 
     # process tuples for area rule
@@ -330,6 +368,35 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.com,
         initialize=commodity_subset(m.com_tuples, 'Env'),
         doc='Commodities that (might) have a maximum creation limit')
+    
+    # Derive multiplier for all energy based costs
+    m.commodity['stf_dist'] = (m.commodity['support_timeframe'].
+                               apply(stf_dist, m=m))
+    m.commodity['c_helper'] = (m.commodity['support_timeframe'].
+                               apply(cost_helper, m=m))
+    m.commodity['c_helper2'] = m.commodity['stf_dist'].apply(cost_helper2, m=m)
+    m.commodity['cost_factor'] = (m.commodity['c_helper'] *
+                                  m.commodity['c_helper2'])
+
+    m.process['stf_dist'] = m.process['support_timeframe'].apply(stf_dist, m=m)
+    m.process['c_helper'] = (m.process['support_timeframe'].
+                             apply(cost_helper, m=m))
+    m.process['c_helper2'] = m.process['stf_dist'].apply(cost_helper2, m=m)
+    m.process['cost_factor'] = m.process['c_helper'] * m.process['c_helper2']
+
+    m.transmission['stf_dist'] = (m.transmission['support_timeframe'].
+                                  apply(stf_dist, m=m))
+    m.transmission['c_helper'] = (m.transmission['support_timeframe'].
+                                  apply(cost_helper, m=m))
+    m.transmission['c_helper2'] = (m.transmission['stf_dist'].
+                                   apply(cost_helper2, m=m))
+    m.transmission['cost_factor'] = (m.transmission['c_helper'] *
+                                     m.transmission['c_helper2'])
+
+    m.storage['stf_dist'] = m.storage['support_timeframe'].apply(stf_dist, m=m)
+    m.storage['c_helper'] = m.storage['support_timeframe'].apply(cost_helper, m=m)
+    m.storage['c_helper2'] = m.storage['stf_dist'].apply(cost_helper2, m=m)
+    m.storage['cost_factor'] = m.storage['c_helper'] * m.storage['c_helper2']
 
     # Parameters
 
@@ -537,7 +604,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         doc='process.cap-lo <= total process capacity <= process.cap-up')
 
     m.res_area = pyomo.Constraint(
-        m.sit,
+        m.sit_tuples,
         rule=res_area_rule,
         doc='used process area <= total process area')
 
@@ -1017,6 +1084,43 @@ def res_sell_buy_symmetry_rule(m, stf, sit_in, pro_in, coin):
         return pyomo.Constraint.Skip
 
 
+# transmission
+
+# transmission capacity == new capacity + existing capacity
+def def_transmission_capacity_rule(m, stf, sin, sout, tra, com):
+    return (m.cap_tra[stf, sin, sout, tra, com] ==
+            sum(m.cap_tra_new[stf, sin, sout, tra, com]
+            for stf_built in m.stf
+            if (sin, sout, tra, com, stf_built, stf) in m.operational_tra_tuples) +
+            sum(m.transmission.loc[stf, sin, sout, tra, com]['inst-cap']
+            for (sin, sout, tra, com, stf) in m.inst_tra_tuples))
+
+
+# transmission output == transmission input * efficiency
+def def_transmission_output_rule(m, tm, stf, sin, sout, tra, com):
+    return (m.e_tra_out[tm, stf, sin, sout, tra, com] ==
+            m.e_tra_in[tm, stf, sin, sout, tra, com] *
+            m.transmission.loc[stf, sin, sout, tra, com]['eff'])
+
+
+# transmission input <= transmission capacity
+def res_transmission_input_by_capacity_rule(m, tm, stf, sin, sout, tra, com):
+    return (m.e_tra_in[tm, stf, sin, sout, tra, com] <=
+            m.cap_tra[stf, sin, sout, tra, com])
+
+
+# lower bound <= transmission capacity <= upper bound
+def res_transmission_capacity_rule(m, stf, sin, sout, tra, com):
+    return (m.transmission.loc[stf, sin, sout, tra, com]['cap-lo'],
+            m.cap_tra[stf, sin, sout, tra, com],
+            m.transmission.loc[stf, sin, sout, tra, com]['cap-up'])
+
+
+# transmission capacity from A to B == transmission capacity from B to A
+def res_transmission_symmetry_rule(m, stf, sin, sout, tra, com):
+    return m.cap_tra[stf, sin, sout, tra, com] == m.cap_tra[stf, sout, sin, tra, com]
+
+
 # storage
 
 # storage content in timestep [t] == storage content[t-1] * (1-discharge)
@@ -1129,8 +1233,8 @@ def def_costs_rule(m, cost_type):
 
     Cost types are
       - Investment costs for process power, storage power and
-        storage capacity. They are multiplied by the annuity
-        factors.
+        storage capacity. They are multiplied by the investment
+        factors. Rest values of units are subtracted.
       - Fixed costs for process power, storage power and storage
         capacity.
       - Variables costs for usage of processes, storage and transmission.
@@ -1141,46 +1245,67 @@ def def_costs_rule(m, cost_type):
         return m.costs[cost_type] == \
             sum(m.cap_pro_new[p] *
                 m.process.loc[p]['inv-cost'] *
-                m.process.loc[p]['annuity-factor']
+                m.process.loc[p]['invcost-factor']
                 for p in m.pro_tuples) + \
             sum(m.cap_tra_new[t] *
                 m.transmission.loc[t]['inv-cost'] *
-                m.transmission.loc[t]['annuity-factor']
+                m.transmission.loc[t]['invcost-factor']
                 for t in m.tra_tuples) + \
             sum(m.cap_sto_p_new[s] *
                 m.storage.loc[s]['inv-cost-p'] *
-                m.storage.loc[s]['annuity-factor'] +
+                m.storage.loc[s]['invcost-factor'] +
                 m.cap_sto_c_new[s] *
                 m.storage.loc[s]['inv-cost-c'] *
-                m.storage.loc[s]['annuity-factor']
+                m.storage.loc[s]['invcost-factor']
+                for s in m.sto_tuples) - \
+            sum(m.cap_pro_new[p] *
+                m.process.loc[p]['inv-cost'] *
+                m.process.loc[p]['rv-factor']
+                for p in m.pro_tuples) - \
+            sum(m.cap_tra_new[t] *
+                m.transmission.loc[t]['inv-cost'] *
+                m.transmission.loc[t]['rv-factor']
+                for t in m.tra_tuples) - \
+            sum(m.cap_sto_p_new[s] *
+                m.storage.loc[s]['inv-cost-p'] *
+                m.storage.loc[s]['rv-factor'] +
+                m.cap_sto_c_new[s] *
+                m.storage.loc[s]['inv-cost-c'] *
+                m.storage.loc[s]['rv-factor']
                 for s in m.sto_tuples)
 
     elif cost_type == 'Fixed':
         return m.costs[cost_type] == \
-            sum(m.cap_pro[p] * m.process.loc[p]['fix-cost']
+            sum(m.cap_pro[p] * m.process.loc[p]['fix-cost'] *
+                m.process.loc[p]['fix-cost']
                 for p in m.pro_tuples) + \
-            sum(m.cap_tra[t] * m.transmission.loc[t]['fix-cost']
+            sum(m.cap_tra[t] * m.transmission.loc[t]['fix-cost'] *
+                m.transmission.loc[t]['cost_factor']
                 for t in m.tra_tuples) + \
-            sum(m.cap_sto_p[s] * m.storage.loc[s]['fix-cost-p'] +
-                m.cap_sto_c[s] * m.storage.loc[s]['fix-cost-c']
+            sum((m.cap_sto_p[s] * m.storage.loc[s]['fix-cost-p'] +
+                m.cap_sto_c[s] * m.storage.loc[s]['fix-cost-c']) *
+                m.storage.loc[s]['cost_factor']
                 for s in m.sto_tuples)
 
     elif cost_type == 'Variable':
         return m.costs[cost_type] == \
             sum(m.tau_pro[(tm,) + p] * m.dt *
                 m.process.loc[p]['var-cost'] *
+                m.process.loc[p]['cost_factor'] *
                 m.weight
                 for tm in m.tm
                 for p in m.pro_tuples) + \
             sum(m.e_tra_in[(tm,) + t] * m.dt *
                 m.transmission.loc[t]['var-cost'] *
+                m.transmission.loc[t]['cost_factor'] *
                 m.weight
                 for tm in m.tm
                 for t in m.tra_tuples) + \
-            sum(m.e_sto_con[(tm,) + s] *
+            sum((m.e_sto_con[(tm,) + s] *
                 m.storage.loc[s]['var-cost-c'] * m.weight +
                 (m.e_sto_in[(tm,) + s] + m.e_sto_out[(tm,) + s]) * m.dt *
-                m.storage.loc[s]['var-cost-p'] * m.weight
+                m.storage.loc[s]['var-cost-p'] * m.weight) *
+                m.storage.loc[s]['cost_factor']
                 for tm in m.tm
                 for s in m.sto_tuples)
 
@@ -1188,6 +1313,7 @@ def def_costs_rule(m, cost_type):
         return m.costs[cost_type] == sum(
             m.e_co_stock[(tm,) + c] * m.dt *
             m.commodity.loc[c]['price'] *
+            m.commodity.loc[c]['cost_factor'] *
             m.weight
             for tm in m.tm for c in m.com_tuples
             if c[1] in m.com_stock)
@@ -1199,6 +1325,7 @@ def def_costs_rule(m, cost_type):
         return m.costs[cost_type] == -sum(
             m.e_co_sell[(tm,) + c] *
             com_prices[c].loc[tm] *
+            m.commodity.loc[c]['cost_factor'] *
             m.weight * m.dt
             for tm in m.tm
             for c in sell_tuples)
@@ -1210,6 +1337,7 @@ def def_costs_rule(m, cost_type):
         return m.costs[cost_type] == sum(
             m.e_co_buy[(tm,) + c] *
             com_prices[c].loc[tm] *
+            m.commodity.loc[c]['cost_factor'] *
             m.weight * m.dt
             for tm in m.tm
             for c in buy_tuples)
@@ -1218,6 +1346,7 @@ def def_costs_rule(m, cost_type):
         return m.costs[cost_type] == sum(
             m.startup_pro[(tm,) + p] *
             m.process.loc[p]['startup-cost'] *
+            m.process.loc[p]['cost_factor'] *
             m.weight * m.dt
             for tm in m.tm
             for p in m.pro_partial_tuples)
@@ -1225,6 +1354,7 @@ def def_costs_rule(m, cost_type):
     elif cost_type == 'Environmental':
         return m.costs[cost_type] == sum(
             - commodity_balance(m, tm, sit, com) *
+            m.commodity.loc[c]['cost_factor'] *
             m.weight * m.dt *
             m.commodity.loc[sit, com, com_type]['price']
             for tm in m.tm

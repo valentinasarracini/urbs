@@ -1,10 +1,12 @@
 import pandas as pd
+import os
+import glob
 from xlrd import XLRDError
 
 
 def read_intertemporal(folder):
     glob_input = os.path.join(folder, '*.xlsx')
-    result_files = sorted(glob.glob(glob_input))
+    input_files = sorted(glob.glob(glob_input))
     return input_files
 
 

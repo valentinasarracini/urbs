@@ -1,22 +1,84 @@
 import pandas as pd
 
 
-def annuity_factor(n, i, sup_tf_built):
-    """Annuity factor formula.
+def invcost_factor(m, n, i, year_built):
+    """Investment cost factor formula.
 
-    Evaluates the annuity factor formula for depreciation duration
-    and interest rate. Works also well for equally sized numpy arrays
-    of values for n and i.
+    Evaluates the factor multiplied to the invest costs
+    for depreciation duration and interest rate.
 
     Args:
         n: depreciation period (years)
         i: interest rate (e.g. 0.06 means 6 %)
-
-    Returns:
-        Value of the expression :math:`\\frac{(1+i)^(1-m)}{n}`
-
+        year_built: year utility is built
+        j: discount rate for intertmeporal planning
     """
-    return (1+i) ** (1-(sup_tf_built-m.global_prop.index.min()[0])) / n
+    j = (m.global_prop.xs('Discount rate', level=1)
+         .loc[m.global_prop.index.min()[0]]['value'])
+    if j == 0:
+        return n * ((1+i) ** n * i)/((1+i) ** n - 1)
+    else:
+        return ((1+j) ** (-(year_built-m.global_prop.index.min()[0])) *
+                (i * (1+i) ** n * ((1+j) ** n - 1)) /
+                (j * (1+j) ** n * ((1+i) ** n - 1)))
+
+
+def rv_factor(m, n, i, year_built):
+    """Rest value factor formula.
+
+    Evaluates the factor multiplied to the invest costs
+    for the rest value of a unit after the end of the
+    optimization period.
+
+    Args:
+        n: depreciation period (years)
+        i: interest rate (e.g. 0.06 means 6 %)
+        year_built: year utility is built
+        j: discount rate for intertmeporal planning
+    """
+    j = (m.global_prop.xs('Discount rate', level=1)
+         .loc[m.global_prop.index.min()[0]]['value'])
+    k = (year_built + n) - m.global_prop.index.max()[0] - 1
+
+    if j == 0:
+        return n * ((1+i) ** n * i)/((1+i) ** n - 1)
+    else:
+        return ((1+j) ** (-(year_built-m.global_prop.index.min()[0])) *
+                (i * (1+i) ** n * ((1+j) ** k - 1)) /
+                (j * (1+j) ** n * ((1+i) ** n - 1)))
+
+
+# Energy related costs
+def stf_dist(stf, m):
+    """Calculates the distance between the modeled support timeframes.
+    """
+    sorted_stf = sorted(list(m.stf))
+    dist = []
+
+    for s in sorted_stf:
+        if s == max(m.stf):
+            dist.append(1)
+        else:
+            dist.append(sorted_stf[sorted_stf.index(s) + 1] - s)
+
+    return dist[sorted_stf.index(stf)]
+
+
+def cost_helper(stf, m):
+    j = (m.global_prop.xs('Discount rate', level=1)
+         .loc[m.global_prop.index.min()[0]]['value'])
+
+    return (1+j) ** (1-(stf-m.global_prop.index.min()[0]))
+
+
+def cost_helper2(dist, m):
+    """Factor for variable, fuel, purchase, sell, and fix costs.
+    Calculated by repetition of modeled stfs and discount utility.
+    """
+    j = (m.global_prop.xs('Discount rate', level=1)
+         .loc[m.global_prop.index.min()[0]]['value'])
+
+    return (1-(1+j) ** (-dist)) / j
 
 
 def commodity_balance(m, tm, stf, sit, com):
@@ -275,8 +337,8 @@ def dsm_down_time_tuples(time, sit_com_tuple, m):
 
     for (stf, site, commodity) in sit_com_tuple:
         for step1 in time:
-            for step2 in range(step1 - delay[site, commodity],
-                               step1 + delay[site, commodity] + 1):
+            for step2 in range(step1 - delay[stf, site, commodity],
+                               step1 + delay[stf, site, commodity] + 1):
                 if lb <= step2 <= ub:
                     time_list.append((stf, step1, step2, site, commodity))
 
@@ -344,12 +406,13 @@ def commodity_subset(com_tuples, type_name):
     """
     if type(type_name) is str:
         # type_name: ('Stock', 'SupIm', 'Env' or 'Demand')
-        return set(com for sit, com, com_type in com_tuples
+        return set(com for stf, sit, com, com_type in com_tuples
                    if com_type == type_name)
     else:
         # type(type_name) is a class 'pyomo.base.sets.SimpleSet'
         # type_name: ('Buy')=>('Elec buy', 'Heat buy')
-        return set((sit, com, com_type) for sit, com, com_type in com_tuples
+        return set((stf, sit, com, com_type) for stf, sit, com, com_type in
+                                                 com_tuples
                    if com in type_name)
 
 

@@ -90,12 +90,12 @@ def setup_solver(optim, logfile='solver.log'):
     return optim
 
 
-def run_scenario(input_file, timesteps, scenario, result_dir,
+def run_scenario(input_files, timesteps, scenario, result_dir,
                  plot_tuples=None, plot_periods=None, report_tuples=None):
     """ run an urbs model for given input, time steps and scenario
 
     Args:
-        input_file: filename to an Excel spreadsheet for urbs.read_excel
+        input_files: filenames to an Excel spreadsheet for urbs.read_excel
         timesteps: a list of timesteps, e.g. range(0,8761)
         scenario: a scenario function that modifies the input data dict
         result_dir: directory name for result spreadsheet and plots
@@ -114,6 +114,7 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
 
     # create model
     prob = urbs.create_model(data, timesteps)
+    prob.write('test.lp', io_options={'symbolic_solver_labels':True})
 
     # refresh time stamp string and create filename for logfile
     now = prob.created
@@ -125,10 +126,10 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
     result = optim.solve(prob, tee=True)
 
     # copy input file to result directory
-    shutil.copyfile(input_file, os.path.join(result_dir, input_file))
+    # shutil.copyfile(input_files, os.path.join(result_dir, input_files))
     
     # save problem solution (and input data) to HDF5 file
-    urbs.save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))
+    # urbs.save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))
 
     # write report to spreadsheet
     urbs.report(
@@ -148,11 +149,11 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
 
 if __name__ == '__main__':
     input_files = urbs.read_intertemporal('Input')
-    result_name = os.path.splitext(input_file)[0]  # cut away file extension
+    result_name = 'Intertemporal'
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 
     # simulation timesteps
-    (offset, length) = (3500, 168) # time step selection
+    (offset, length) = (3500, 24) # time step selection
     timesteps = range(offset, offset+length+1)
 
     # plotting commodities/sites
@@ -182,16 +183,17 @@ if __name__ == '__main__':
 
     # select scenarios to be run
     scenarios = [
-        scenario_base,
-        scenario_stock_prices,
-        scenario_co2_limit,
-        scenario_co2_tax_mid,
-        scenario_no_dsm,
-        scenario_north_process_caps,
-        scenario_all_together]
+        scenario_base
+        #scenario_stock_prices,
+        #scenario_co2_limit,
+        #scenario_co2_tax_mid,
+        #scenario_no_dsm,
+        #scenario_north_process_caps,
+        #scenario_all_together
+        ]
 
     for scenario in scenarios:
-        prob = run_scenario(input_file, timesteps, scenario, result_dir,
+        prob = run_scenario(input_files, timesteps, scenario, result_dir,
                             plot_tuples=plot_tuples,
                             plot_periods=plot_periods,
                             report_tuples=report_tuples)
