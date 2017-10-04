@@ -165,8 +165,8 @@ if __name__ == '__main__':
 
     # detailed reporting commodity/sites
     report_tuples = [
-        ('North', 'Elec'), ('Mid', 'Elec'), ('South', 'Elec'),
-        ('North', 'CO2'), ('Mid', 'CO2'), ('South', 'CO2')]
+        (2020, 'North', 'Elec'), (2020, 'Mid', 'Elec'), (2020, 'South', 'Elec'),
+        (2020, 'North', 'CO2'), (2020, 'Mid', 'CO2'), (2020, 'South', 'CO2')]
 
     # plotting timesteps
     plot_periods = {

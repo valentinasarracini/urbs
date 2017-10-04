@@ -35,7 +35,7 @@ def report(instance, filename, report_tuples=None):
         timeseries = {}
 
         # collect timeseries data
-        for sit, com in report_tuples:
+        for stf, sit, com in report_tuples:
             (created, consumed, stored, imported, exported,
              dsm) = get_timeseries(instance, com, sit)
 

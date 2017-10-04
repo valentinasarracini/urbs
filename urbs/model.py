@@ -135,7 +135,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.t,
         initialize=m.timesteps[1:],
         ordered=True,
-        doc='Set of modelled timesteps within one stf')
+        doc='Set of modelled timesteps within each stf')
 
     # modelled Demand Side Management time steps (downshift):
     # downshift effective in tt to compensate for upshift in t
@@ -216,14 +216,14 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         initialize=m.dsm.index,
         doc='Combinations of possible dsm by site, e.g. (2020, Mid, Elec)')
     m.dsm_down_tuples = pyomo.Set(
-        within=m.stf*m.tm*m.tm*m.sit*m.com,
-        initialize=[(stf, t, tt, site, commodity)
-                    for (stf, t, tt, site, commodity)
+        within=m.tm*m.tm*m.stf*m.sit*m.com,
+        initialize=[(t, tt, stf, site, commodity)
+                    for (t, tt, stf, site, commodity)
                     in dsm_down_time_tuples(m.timesteps[1:],
                                             m.dsm_site_tuples,
                                             m)],
         doc='Combinations of possible dsm_down combinations, e.g. '
-            '(2020,5001,5003,Mid,Elec)')
+            '(5001,5003,2020,Mid,Elec)')
 
     # tuples for operational status of technologies
     m.operational_pro_tuples = pyomo.Set(
@@ -368,7 +368,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         within=m.com,
         initialize=commodity_subset(m.com_tuples, 'Env'),
         doc='Commodities that (might) have a maximum creation limit')
-    
+
     # Derive multiplier for all energy based costs
     m.commodity['stf_dist'] = (m.commodity['support_timeframe'].
                                apply(stf_dist, m=m))
@@ -394,7 +394,8 @@ def create_model(data, timesteps=None, dt=1, dual=False):
                                      m.transmission['c_helper2'])
 
     m.storage['stf_dist'] = m.storage['support_timeframe'].apply(stf_dist, m=m)
-    m.storage['c_helper'] = m.storage['support_timeframe'].apply(cost_helper, m=m)
+    m.storage['c_helper'] = (m.storage['support_timeframe']
+                             .apply(cost_helper, m=m))
     m.storage['c_helper2'] = m.storage['stf_dist'].apply(cost_helper2, m=m)
     m.storage['cost_factor'] = m.storage['c_helper'] * m.storage['c_helper2']
 
@@ -697,16 +698,6 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         rule=res_initial_and_final_storage_state_rule,
         doc='storage content initial == and final >= storage.init * capacity')
 
-    # costs
-    m.def_costs = pyomo.Constraint(
-        m.cost_type,
-        rule=def_costs_rule,
-        doc='main cost function by cost type')
-    m.obj = pyomo.Objective(
-        rule=obj_rule,
-        sense=pyomo.minimize,
-        doc='minimize(cost = sum of all cost types)')
-
     # demand side management
     m.def_dsm_variables = pyomo.Constraint(
         m.tm, m.dsm_site_tuples,
@@ -734,8 +725,19 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         doc='DSMup(t, t + recovery time R) <= Cup * delay time L')
 
     m.res_global_co2_limit = pyomo.Constraint(
-            rule=res_global_co2_limit_rule,
-            doc='total co2 commodity output <= global.Glocal CO2 limit')
+        m.stf,
+        rule=res_global_co2_limit_rule,
+        doc='total co2 commodity output <= global.Glocal CO2 limit')
+
+    # costs
+    m.def_costs = pyomo.Constraint(
+        m.cost_type,
+        rule=def_costs_rule,
+        doc='main cost function by cost type')
+    m.obj = pyomo.Objective(
+        rule=obj_rule,
+        sense=pyomo.minimize,
+        doc='minimize(cost = sum of all cost types)')
 
     if dual:
         m.dual = pyomo.Suffix(direction=pyomo.Suffix.IMPORT)
@@ -792,7 +794,7 @@ def res_vertex_rule(m, tm, stf, sit, com, com_type):
     # upshifted demand and increased by the downshifted demand.
     if (stf, sit, com) in m.dsm_site_tuples:
         power_surplus -= m.dsm_up[tm, stf, sit, com]
-        power_surplus += sum(m.dsm_down[stf, t, tm, sit, com]
+        power_surplus += sum(m.dsm_down[t, tm, stf, sit, com]
                              for t in dsm_time_tuples(
                                  tm, m.timesteps[1:],
                                  m.dsm['delay'].loc[stf, sit, com]))
@@ -1091,7 +1093,8 @@ def def_transmission_capacity_rule(m, stf, sin, sout, tra, com):
     return (m.cap_tra[stf, sin, sout, tra, com] ==
             sum(m.cap_tra_new[stf, sin, sout, tra, com]
             for stf_built in m.stf
-            if (sin, sout, tra, com, stf_built, stf) in m.operational_tra_tuples) +
+            if (sin, sout, tra, com, stf_built, stf) in
+            m.operational_tra_tuples) +
             sum(m.transmission.loc[stf, sin, sout, tra, com]['inst-cap']
             for (sin, sout, tra, com, stf) in m.inst_tra_tuples))
 
@@ -1118,7 +1121,8 @@ def res_transmission_capacity_rule(m, stf, sin, sout, tra, com):
 
 # transmission capacity from A to B == transmission capacity from B to A
 def res_transmission_symmetry_rule(m, stf, sin, sout, tra, com):
-    return m.cap_tra[stf, sin, sout, tra, com] == m.cap_tra[stf, sout, sin, tra, com]
+    return m.cap_tra[stf, sin, sout, tra, com] == (m.cap_tra
+                                                   [stf, sout, sin, tra, com])
 
 
 # storage
@@ -1203,9 +1207,9 @@ def res_initial_and_final_storage_state_rule(m, t, stf, sit, sto, com):
 
 # total CO2 output <= Global CO2 limit
 def res_global_co2_limit_rule(m, stf):
-    if math.isinf(m.global_prop.loc[stf, 'CO2 limit', 'value']):
+    if math.isinf(m.global_prop.loc[stf, 'CO2 limit']['value']):
         return pyomo.Constraint.Skip
-    elif m.global_prop.loc[stf, 'CO2 limit', 'value'] > 0:
+    elif m.global_prop.loc[stf, 'CO2 limit']['value'] > 0:
         co2_output_sum = 0
         for tm in m.tm:
             for sit in m.sit:
@@ -1289,76 +1293,70 @@ def def_costs_rule(m, cost_type):
 
     elif cost_type == 'Variable':
         return m.costs[cost_type] == \
-            sum(m.tau_pro[(tm,) + p] * m.dt *
+            sum(m.tau_pro[(tm,) + p] * m.dt * m.weight *
                 m.process.loc[p]['var-cost'] *
-                m.process.loc[p]['cost_factor'] *
-                m.weight
+                m.process.loc[p]['cost_factor']
                 for tm in m.tm
                 for p in m.pro_tuples) + \
-            sum(m.e_tra_in[(tm,) + t] * m.dt *
+            sum(m.e_tra_in[(tm,) + t] * m.dt * m.weight *
                 m.transmission.loc[t]['var-cost'] *
-                m.transmission.loc[t]['cost_factor'] *
-                m.weight
+                m.transmission.loc[t]['cost_factor']
                 for tm in m.tm
                 for t in m.tra_tuples) + \
-            sum((m.e_sto_con[(tm,) + s] *
-                m.storage.loc[s]['var-cost-c'] * m.weight +
+            sum(m.e_sto_con[(tm,) + s] * m.weight *
+                m.storage.loc[s]['var-cost-c'] *
+                m.storage.loc[s]['cost_factor'] +
                 (m.e_sto_in[(tm,) + s] + m.e_sto_out[(tm,) + s]) * m.dt *
-                m.storage.loc[s]['var-cost-p'] * m.weight) *
+                m.weight * m.storage.loc[s]['var-cost-p'] *
                 m.storage.loc[s]['cost_factor']
                 for tm in m.tm
                 for s in m.sto_tuples)
 
     elif cost_type == 'Fuel':
         return m.costs[cost_type] == sum(
-            m.e_co_stock[(tm,) + c] * m.dt *
+            m.e_co_stock[(tm,) + c] * m.dt * m.weight *
             m.commodity.loc[c]['price'] *
-            m.commodity.loc[c]['cost_factor'] *
-            m.weight
+            m.commodity.loc[c]['cost_factor']
             for tm in m.tm for c in m.com_tuples
-            if c[1] in m.com_stock)
+            if c[2] in m.com_stock)
 
     elif cost_type == 'Revenue':
         sell_tuples = commodity_subset(m.com_tuples, m.com_sell)
-        com_prices = get_com_price(m, sell_tuples)
 
         return m.costs[cost_type] == -sum(
             m.e_co_sell[(tm,) + c] *
-            com_prices[c].loc[tm] *
-            m.commodity.loc[c]['cost_factor'] *
-            m.weight * m.dt
+            m.buy_sell_price.loc[c[0], tm][c[2]] * m.weight * m.dt *
+            m.commodity.loc[c]['price'] *
+            m.commodity.loc[c]['cost_factor']
             for tm in m.tm
             for c in sell_tuples)
 
     elif cost_type == 'Purchase':
         buy_tuples = commodity_subset(m.com_tuples, m.com_buy)
-        com_prices = get_com_price(m, buy_tuples)
 
         return m.costs[cost_type] == sum(
             m.e_co_buy[(tm,) + c] *
-            com_prices[c].loc[tm] *
-            m.commodity.loc[c]['cost_factor'] *
-            m.weight * m.dt
+            m.buy_sell_price.loc[c[0], tm][c[2]] * m.weight * m.dt *
+            m.commodity.loc[c]['price'] *
+            m.commodity.loc[c]['cost_factor']
             for tm in m.tm
             for c in buy_tuples)
 
     elif cost_type == 'Startup':
         return m.costs[cost_type] == sum(
-            m.startup_pro[(tm,) + p] *
+            m.startup_pro[(tm,) + p] * m.weight * m.dt *
             m.process.loc[p]['startup-cost'] *
-            m.process.loc[p]['cost_factor'] *
-            m.weight * m.dt
+            m.process.loc[p]['cost_factor']
             for tm in m.tm
             for p in m.pro_partial_tuples)
 
     elif cost_type == 'Environmental':
         return m.costs[cost_type] == sum(
-            - commodity_balance(m, tm, sit, com) *
-            m.commodity.loc[c]['cost_factor'] *
-            m.weight * m.dt *
-            m.commodity.loc[sit, com, com_type]['price']
+            - commodity_balance(m, tm, stf, sit, com) * m.weight * m.dt *
+            m.commodity.loc[stf, sit, com, com_type]['cost_factor'] *
+            m.commodity.loc[stf, sit, com, com_type]['price']
             for tm in m.tm
-            for sit, com, com_type in m.com_tuples
+            for stf, sit, com, com_type in m.com_tuples
             if com in m.com_env)
 
     else:

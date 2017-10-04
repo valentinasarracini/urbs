@@ -340,7 +340,7 @@ def dsm_down_time_tuples(time, sit_com_tuple, m):
             for step2 in range(step1 - delay[stf, site, commodity],
                                step1 + delay[stf, site, commodity] + 1):
                 if lb <= step2 <= ub:
-                    time_list.append((stf, step1, step2, site, commodity))
+                    time_list.append((step1, step2, stf, site, commodity))
 
     return time_list
 
@@ -411,87 +411,8 @@ def commodity_subset(com_tuples, type_name):
     else:
         # type(type_name) is a class 'pyomo.base.sets.SimpleSet'
         # type_name: ('Buy')=>('Elec buy', 'Heat buy')
-        return set((stf, sit, com, com_type) for stf, sit, com, com_type in
-                                                 com_tuples
-                   if com in type_name)
-
-
-def get_com_price(instance, tuples):
-    """ Calculate commodity prices for each modelled timestep.
-
-    Args:
-        instance: a Pyomo ConcreteModel instance
-        tuples: a list of (site, commodity, commodity type) tuples
-
-    Returns:
-        a Pandas DataFrame with entities as columns and timesteps as index
-    """
-    com_price = pd.DataFrame(index=instance.tm)
-    for c in tuples:
-        # check commodity price: fix or has a timeseries
-        # type(instance.commodity.loc[c]['price']):
-        # float => fix: com price = 0.15
-        # string => var: com price = '1.25xBuy' (Buy: refers to timeseries)
-        if not isinstance(instance.commodity.loc[c]['price'], (float, int)):
-            # a different commodity price for each hour
-            # factor, to realize a different commodity price for each site
-            factor = extract_number_str(instance.commodity.loc[c]['price'])
-            price = factor * instance.buy_sell_price.loc[(instance.tm,) +
-                                                         (c[1],)]
-            com_price[c] = pd.Series(price, index=com_price.index)
-        else:
-            # same commodity price for each hour
-            price = instance.commodity.loc[c]['price']
-            com_price[c] = pd.Series(price, index=com_price.index)
-    return com_price
-
-
-def extract_number_str(str_in):
-    """ Extract first number from a given string and convert to a float number.
-
-    The function works with the following formats (,25), (.25), (2), (2,5),
-    (2.5), (1,000.25), (1.000,25) and  doesn't with (1e3), (1.5-0.4j) and
-    negative numbers.
-
-    Args:
-        str_in: a string ('1,20BUY')
-
-    Returns:
-        A float number (1.20)
-    """
-    import re
-    # deletes all char starting after the number
-    start_char = re.search('[*:!%$&?a-zA-Z]', str_in).start()
-    str_num = str_in[:start_char]
-
-    if re.search('\d+', str_num) is None:
-        # no number in str_num
-        return 1.0
-    elif re.search('^(\d+|\d{1,3}(,\d{3})*)(\.\d+)?$', str_num) is not None:
-        # Commas required between powers of 1,000
-        # Can't start with "."
-        # Pass: (1,000,000), (0.001)
-        # Fail: (1000000), (1,00,00,00), (.001)
-        str_num = str_num.replace(',', '')
-        return float(str_num)
-    elif re.search('^(\d+|\d{1,3}(.\d{3})*)(\,\d+)?$', str_num) is not None:
-        # Dots required between powers of 1.000
-        # Can't start with ","
-        # Pass: (1.000.000), (0,001)
-        # Fail: (1000000), (1.00.00,00), (,001)
-        str_num = str_num.replace('.', '')
-        return float(str_num.replace(',', '.'))
-    elif re.search('^\d*\.?\d+$', str_num) is not None:
-        # No commas allowed
-        # Pass: (1000.0), (001), (.001)
-        # Fail: (1,000.0)
-        return float(str_num)
-    elif re.search('^\d*\,?\d+$', str_num) is not None:
-        # No dots allowed
-        # Pass: (1000,0), (001), (,001)
-        # Fail: (1.000,0)
-        str_num = str_num.replace(',', '.')
-        return float(str_num)
+        return set((stf, sit, com, com_type) for stf, sit, com, com_type
+                   in com_tuples if com in type_name)
 
 
 def search_sell_buy_tuple(instance, stf, sit_in, pro_in, coin):
