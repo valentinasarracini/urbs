@@ -121,7 +121,7 @@ def run_scenario(input_files, timesteps, scenario, result_dir,
     log_filename = os.path.join(result_dir, '{}.log').format(sce)
 
     # solve model and read results
-    optim = SolverFactory('glpk')  # cplex, glpk, gurobi, ...
+    optim = SolverFactory('gurobi')  # cplex, glpk, gurobi, ...
     optim = setup_solver(optim, logfile=log_filename)
     result = optim.solve(prob, tee=True)
 
@@ -153,20 +153,29 @@ if __name__ == '__main__':
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 
     # simulation timesteps
-    (offset, length) = (3500, 24) # time step selection
+    (offset, length) = (1, 8759) # time step selection
     timesteps = range(offset, offset+length+1)
 
     # plotting commodities/sites
     plot_tuples = [
-        ('North', 'Elec'),
-        ('Mid', 'Elec'),
-        ('South', 'Elec'),
-        (['North', 'Mid', 'South'], 'Elec')]
+        (2020, 'North', 'Elec'),
+        (2020, 'Mid', 'Elec'),
+        (2020, 'South', 'Elec'),
+        (2020, ['North', 'Mid', 'South'], 'Elec'),
+        (2030, ['North', 'Mid', 'South'], 'Elec'),
+        (2040, ['North', 'Mid', 'South'], 'Elec'),
+        (2050, ['North', 'Mid', 'South'], 'Elec')]
 
     # detailed reporting commodity/sites
     report_tuples = [
         (2020, 'North', 'Elec'), (2020, 'Mid', 'Elec'), (2020, 'South', 'Elec'),
-        (2020, 'North', 'CO2'), (2020, 'Mid', 'CO2'), (2020, 'South', 'CO2')]
+        (2020, 'North', 'CO2'), (2020, 'Mid', 'CO2'), (2020, 'South', 'CO2'),
+        (2030, 'North', 'Elec'), (2030, 'Mid', 'Elec'), (2030, 'South', 'Elec'),
+        (2030, 'North', 'CO2'), (2030, 'Mid', 'CO2'), (2030, 'South', 'CO2'),
+        (2040, 'North', 'Elec'), (2040, 'Mid', 'Elec'), (2040, 'South', 'Elec'),
+        (2040, 'North', 'CO2'), (2040, 'Mid', 'CO2'), (2040, 'South', 'CO2'),
+        (2050, 'North', 'Elec'), (2050, 'Mid', 'Elec'), (2050, 'South', 'Elec'),
+        (2050, 'North', 'CO2'), (2050, 'Mid', 'CO2'), (2050, 'South', 'CO2')]
 
     # plotting timesteps
     plot_periods = {

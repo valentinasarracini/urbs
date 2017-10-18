@@ -258,7 +258,7 @@ def inst_pro_tuples(m):
         for stf_later in sorted_stf:
             index_helper = sorted_stf.index(stf_later)
             if stf_later == max(m.stf):
-                if (stf_later <=
+                if (stf_later <
                     min(m.stf) + m.process.loc[(stf, sit, pro),
                                                'lifetime']):
                     inst_pro.append((sit, pro, stf_later))
@@ -280,7 +280,7 @@ def inst_tra_tuples(m):
         for stf_later in sorted_stf:
             index_helper = sorted_stf.index(stf_later)
             if stf_later == max(m.stf):
-                if (stf_later <=
+                if (stf_later <
                     min(m.stf) +
                     m.transmission.loc[(stf, sit1, sit2, tra, com),
                                        'lifetime']):
@@ -303,7 +303,7 @@ def inst_sto_tuples(m):
         for stf_later in sorted_stf:
             index_helper = sorted_stf.index(stf_later)
             if stf_later == max(m.stf):
-                if (stf_later <=
+                if (stf_later <
                     min(m.stf) + m.storage.loc[(stf, sit, sto, com),
                                                'lifetime']):
                     inst_sto.append((sit, sto, com, stf_later))

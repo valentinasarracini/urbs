@@ -37,7 +37,7 @@ def report(instance, filename, report_tuples=None):
         # collect timeseries data
         for stf, sit, com in report_tuples:
             (created, consumed, stored, imported, exported,
-             dsm) = get_timeseries(instance, com, sit)
+             dsm) = get_timeseries(instance, com, stf, sit)
 
             overprod = pd.DataFrame(
                 columns=['Overproduction'],

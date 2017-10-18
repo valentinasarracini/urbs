@@ -68,11 +68,11 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.proc_area = m.proc_area.dropna()
 
     # installed units for intertemporal planning
-    m.inst_pro = m.process['lifetime']
+    m.inst_pro = m.process['inst-cap']
     m.inst_pro = m.inst_pro[m.inst_pro > 0]
-    m.inst_tra = m.transmission['lifetime']
+    m.inst_tra = m.transmission['inst-cap']
     m.inst_tra = m.inst_tra[m.inst_tra > 0]
-    m.inst_sto = m.storage['lifetime']
+    m.inst_sto = m.storage['inst-cap-p']
     m.inst_sto = m.inst_sto[m.inst_sto > 0]
 
     # input ratios for partial efficiencies
@@ -965,12 +965,17 @@ def res_env_total_rule(m, stf, sit, com, com_type):
 
 # process capacity == new capacity + existing capacity
 def def_process_capacity_rule(m, stf, sit, pro):
-    return (m.cap_pro[stf, sit, pro] ==
+    if (sit, pro, stf) in m.inst_pro_tuples:
+        return (m.cap_pro[stf, sit, pro] ==
             sum(m.cap_pro_new[stf_built, sit, pro]
             for stf_built in m.stf
-            if (sit, pro, stf_built, stf) in m.operational_pro_tuples) +
-            sum(m.process.loc[stf, sit, pro]['inst-cap']
-            for (sit, pro, stf) in m.inst_pro_tuples))
+            if (sit, pro, stf_built, stf) in m.operational_pro_tuples) + 
+            m.process.loc[min(m.stf), sit, pro]['inst-cap'])
+    else:
+        return (m.cap_pro[stf, sit, pro] ==
+            sum(m.cap_pro_new[stf_built, sit, pro]
+            for stf_built in m.stf
+            if (sit, pro, stf_built, stf) in m.operational_pro_tuples))
 
 
 # process input power == process throughput * input ratio
@@ -1058,13 +1063,13 @@ def res_process_capacity_rule(m, stf, sit, pro):
 # used process area <= maximal process area
 def res_area_rule(m, stf, sit):
     if m.site.loc[stf, sit]['area'] >= 0 and sum(
-                         m.process.loc[(stf, s, p), 'area-per-cap']
-                         for (stf, s, p) in m.pro_area_tuples
-                         if s == sit) > 0:
-        total_area = sum(m.cap_pro[stf, s, p] *
-                         m.process.loc[(stf, s, p), 'area-per-cap']
-                         for (stf, s, p) in m.pro_area_tuples
-                         if s == sit)
+                         m.process.loc[(st, s, p), 'area-per-cap']
+                         for (st, s, p) in m.pro_area_tuples
+                         if s == sit and st == stf) > 0:
+        total_area = sum(m.cap_pro[st, s, p] *
+                         m.process.loc[(st, s, p), 'area-per-cap']
+                         for (st, s, p) in m.pro_area_tuples
+                         if s == sit and st == stf)
         return total_area <= m.site.loc[stf, sit]['area']
     else:
         # Skip constraint, if area is not numeric
@@ -1090,13 +1095,20 @@ def res_sell_buy_symmetry_rule(m, stf, sit_in, pro_in, coin):
 
 # transmission capacity == new capacity + existing capacity
 def def_transmission_capacity_rule(m, stf, sin, sout, tra, com):
-    return (m.cap_tra[stf, sin, sout, tra, com] ==
-            sum(m.cap_tra_new[stf, sin, sout, tra, com]
-            for stf_built in m.stf
-            if (sin, sout, tra, com, stf_built, stf) in
-            m.operational_tra_tuples) +
-            sum(m.transmission.loc[stf, sin, sout, tra, com]['inst-cap']
-            for (sin, sout, tra, com, stf) in m.inst_tra_tuples))
+    if (sin, sout, tra, com, stf) in m.inst_tra_tuples:
+        return (m.cap_tra[stf, sin, sout, tra, com] ==
+                sum(m.cap_tra_new[stf_built, sin, sout, tra, com]
+                for stf_built in m.stf
+                if (sin, sout, tra, com, stf_built, stf) in
+                m.operational_tra_tuples) +
+                m.transmission.loc[min(m.stf), sin, sout, tra, com]
+                ['inst-cap'])
+    else:
+        return (m.cap_tra[stf, sin, sout, tra, com] ==
+                sum(m.cap_tra_new[stf_built, sin, sout, tra, com]
+                for stf_built in m.stf
+                if (sin, sout, tra, com, stf_built, stf) in
+                m.operational_tra_tuples))
 
 
 # transmission output == transmission input * efficiency
@@ -1141,22 +1153,35 @@ def def_storage_state_rule(m, t, stf, sit, sto, com):
 
 
 def def_storage_power_rule(m, stf, sit, sto, com):
-    return (m.cap_sto_p[stf, sit, sto, com] ==
-            sum(m.cap_sto_p_new[stf_built, sit, sto, com]
-            for stf_built in m.stf
-            if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples) +
-            sum(m.storage.loc[stf, sit, sto, com]['inst-cap-p']
-            for (sit, sto, com, stf) in m.inst_sto_tuples))
-
+    if (sit, sto, com, stf) in m.inst_sto_tuples:
+        return (m.cap_sto_p[stf, sit, sto, com] ==
+                sum(m.cap_sto_p_new[stf_built, sit, sto, com]
+                for stf_built in m.stf
+                if (sit, sto, com, stf_built, stf) in
+                    m.operational_sto_tuples) +
+                m.storage.loc[min(m.stf), sit, sto, com]['inst-cap-p'])
+    else:
+        return (m.cap_sto_p[stf, sit, sto, com] ==
+                sum(m.cap_sto_p_new[stf_built, sit, sto, com]
+                for stf_built in m.stf
+                if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples)
+                )
 
 # storage capacity == new storage capacity + existing storage capacity
 def def_storage_capacity_rule(m, stf, sit, sto, com):
-    return (m.cap_sto_c[stf, sit, sto, com] ==
-            sum(m.cap_sto_c_new[stf_built, sit, sto, com]
-            for stf_built in m.stf
-            if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples) +
-            sum(m.storage.loc[stf, sit, sto, com]['inst-cap-c']
-            for (sit, sto, com, stf) in m.inst_sto_tuples))
+    if (sit, sto, com, stf) in m.inst_sto_tuples:
+        return (m.cap_sto_c[stf, sit, sto, com] ==
+                sum(m.cap_sto_c_new[stf_built, sit, sto, com]
+                for stf_built in m.stf
+                if (sit, sto, com, stf_built, stf) in
+                    m.operational_sto_tuples) +
+                m.storage.loc[min(m.stf), sit, sto, com]['inst-cap-c'])
+    else:
+        return (m.cap_sto_c[stf, sit, sto, com] ==
+                sum(m.cap_sto_c_new[stf_built, sit, sto, com]
+                for stf_built in m.stf
+                if (sit, sto, com, stf_built, stf) in m.operational_sto_tuples)
+                )
 
 
 # storage input <= storage power
@@ -1281,7 +1306,7 @@ def def_costs_rule(m, cost_type):
     elif cost_type == 'Fixed':
         return m.costs[cost_type] == \
             sum(m.cap_pro[p] * m.process.loc[p]['fix-cost'] *
-                m.process.loc[p]['fix-cost']
+                m.process.loc[p]['cost_factor']
                 for p in m.pro_tuples) + \
             sum(m.cap_tra[t] * m.transmission.loc[t]['fix-cost'] *
                 m.transmission.loc[t]['cost_factor']

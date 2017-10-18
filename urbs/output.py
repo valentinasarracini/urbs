@@ -39,21 +39,23 @@ def get_constants(instance):
 
     # better labels and index names and return sorted
     if not cpro.empty:
-        cpro.index.names = ['Site', 'Process']
+        cpro.index.names = ['Stf', 'Site', 'Process']
         cpro.columns = ['Total', 'New']
         cpro.sortlevel(inplace=True)
     if not ctra.empty:
-        ctra.index.names = ['Site In', 'Site Out', 'Transmission', 'Commodity']
+        ctra.index.names = (['Stf', 'Site In', 'Site Out',
+                             'Transmission', 'Commodity'])
         ctra.columns = ['Total', 'New']
         ctra.sortlevel(inplace=True)
     if not csto.empty:
+        csto.index.names = ['Stf', 'Site', 'Storage', 'Commodity']
         csto.columns = ['C Total', 'C New', 'P Total', 'P New']
         csto.sortlevel(inplace=True)
 
     return costs, cpro, ctra, csto
 
 
-def get_timeseries(instance, com, sites, timesteps=None):
+def get_timeseries(instance, com, stf, sites, timesteps=None):
     """Return DataFrames of all timeseries referring to given commodity
 
     Usage:
