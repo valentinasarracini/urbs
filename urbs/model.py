@@ -81,7 +81,15 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     # b) numeric (implicitely, as NaN or NV compare false against 0)
     m.r_in_min_fraction = m.process_commodity.xs('In', level='Direction')
     m.r_in_min_fraction = m.r_in_min_fraction['ratio-min']
-    m.r_in_min_fraction = m.r_in_min_fraction.dropna()
+    m.r_in_min_fraction = m.r_in_min_fraction[m.r_in_min_fraction > 0]
+    
+    # output ratios for partial efficiencies
+    # only keep those entries whose values are
+    # a) positive and
+    # b) numeric (implicitely, as NaN or NV compare false against 0)
+    m.r_out_min_fraction = m.process_commodity.xs('Out', level='Direction')
+    m.r_out_min_fraction = m.r_out_min_fraction['ratio-min']
+    m.r_out_min_fraction = m.r_out_min_fraction[m.r_out_min_fraction > 0]
 
     # derive invest factor from WACC, depreciation and discount untility
     m.process['invcost-factor'] = invcost_factor(
@@ -343,6 +351,14 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         doc='Commodities with partial input ratio,'
             'e.g. (2020,Mid,Coal PP,Coal)')
 
+    m.pro_partial_output_tuples = pyomo.Set(
+        within=m.stf*m.sit*m.pro*m.com,
+        initialize=[(stf, site, process, commodity)
+                    for (stf, site, process) in m.pro_partial_tuples
+                    for (s, pro, commodity) in m.r_out_min_fraction.index
+                    if process == pro and s == stf],
+        doc='Commodities with partial input ratio, e.g. (Mid,Coal PP,CO2)')
+
     # commodity type subsets
     m.com_supim = pyomo.Set(
         within=m.com,
@@ -580,7 +596,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         rule=def_process_input_rule,
         doc='process input = process throughput * input ratio')
     m.def_process_output = pyomo.Constraint(
-        m.tm, m.pro_output_tuples,
+        m.tm, m.pro_output_tuples - m.pro_partial_output_tuples,
         rule=def_process_output_rule,
         doc='process output = process throughput * output ratio')
     m.def_intermittent_supply = pyomo.Constraint(
@@ -626,6 +642,12 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         m.tm, m.pro_partial_input_tuples,
         rule=def_partial_process_input_rule,
         doc='e_pro_in = '
+            ' cap_online * min_fraction * (r - R) / (1 - min_fraction)'
+            ' + tau_pro * (R - min_fraction * r) / (1 - min_fraction)')
+    m.def_partial_process_output = pyomo.Constraint(
+        m.tm, m.pro_partial_output_tuples,
+        rule=def_partial_process_output_rule,
+        doc='e_pro_out = '
             ' cap_online * min_fraction * (r - R) / (1 - min_fraction)'
             ' + tau_pro * (R - min_fraction * r) / (1 - min_fraction)')
     m.res_cap_online_by_cap_pro = pyomo.Constraint(
@@ -727,7 +749,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
     m.res_global_co2_limit = pyomo.Constraint(
         m.stf,
         rule=res_global_co2_limit_rule,
-        doc='total co2 commodity output <= global.Glocal CO2 limit')
+        doc='total co2 commodity output <= global.prop CO2 limit')
 
     # costs
     m.def_costs = pyomo.Constraint(
@@ -1039,6 +1061,21 @@ def def_partial_process_input_rule(m, tm, stf, sit, pro, coin):
     throughput_factor = (R - min_fraction * r) / (1 - min_fraction)
 
     return (m.e_pro_in[tm, stf, sit, pro, coin] ==
+            m.cap_online[tm, stf, sit, pro] * online_factor +
+            m.tau_pro[tm, stf, sit, pro] * throughput_factor)
+
+
+def def_partial_process_output_rule(m, tm, stf, sit, pro, coo):
+    # input ratio at maximum operation point
+    R = m.r_out.loc[stf, pro, coo]
+    # input ratio at lowest operation point
+    r = m.r_out_min_fraction[stf, pro, coo]
+    min_fraction = m.process.loc[stf, sit, pro]['min-fraction']
+
+    online_factor = min_fraction * (r - R) / (1 - min_fraction)
+    throughput_factor = (R - min_fraction * r) / (1 - min_fraction)
+
+    return (m.e_pro_out[tm, stf, sit, pro, coo] ==
             m.cap_online[tm, stf, sit, pro] * online_factor +
             m.tau_pro[tm, stf, sit, pro] * throughput_factor)
 

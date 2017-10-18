@@ -23,8 +23,8 @@ def scenario_stock_prices(data):
 
 def scenario_co2_limit(data):
     # change global CO2 limit
-    glob = data['global']
-    glob.loc['CO2 limit', 'value'] *= 0.05
+    global_prop = data['global_prop']
+    global_prop.loc['CO2 limit', 'value'] *= 0.05
     return data
 
 
@@ -127,7 +127,7 @@ def run_scenario(input_files, timesteps, scenario, result_dir,
 
     # copy input file to result directory
     # shutil.copyfile(input_files, os.path.join(result_dir, input_files))
-    
+
     # save problem solution (and input data) to HDF5 file
     # urbs.save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))
 
@@ -152,8 +152,13 @@ if __name__ == '__main__':
     result_name = 'Intertemporal'
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 
+    # copy input file to result directory
+    # shutil.copyfile(input_file, os.path.join(result_dir, input_file))
+    # copy runme.py to result directory
+    # shutil.copyfile(__file__, os.path.join(result_dir, __file__))
+
     # simulation timesteps
-    (offset, length) = (1, 8759) # time step selection
+    (offset, length) = (3500, 168)  # time step selection
     timesteps = range(offset, offset+length+1)
 
     # plotting commodities/sites
