@@ -35,16 +35,17 @@ def rv_factor(m, n, i, year_built):
         i: interest rate (e.g. 0.06 means 6 %)
         year_built: year utility is built
         j: discount rate for intertmeporal planning
+        k: operational time after simulation horizon
     """
     j = (m.global_prop.xs('Discount rate', level=1)
          .loc[m.global_prop.index.min()[0]]['value'])
     k = (year_built + n) - m.global_prop.index.max()[0] - 1
 
     if j == 0:
-        return n * ((1+i) ** n * i)/((1+i) ** n - 1)
+        return k * ((1+i) ** n * i)/((1+i) ** n - 1)
     else:
         return ((1+j) ** (-(year_built-m.global_prop.index.min()[0])) *
-                (i * (1+i) ** n * ((1+j) ** k - 1)) /
+                (i * (1+i)** n * ((1+j) ** k - 1)) /
                 (j * (1+j) ** n * ((1+i) ** n - 1)))
 
 
@@ -78,7 +79,10 @@ def cost_helper2(dist, m):
     j = (m.global_prop.xs('Discount rate', level=1)
          .loc[m.global_prop.index.min()[0]]['value'])
 
-    return (1-(1+j) ** (-dist)) / j
+    if j == 0:
+        return dist
+    else:
+        return (1-(1+j) ** (-dist)) / j
 
 
 def commodity_balance(m, tm, stf, sit, com):

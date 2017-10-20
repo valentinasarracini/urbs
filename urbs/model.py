@@ -787,7 +787,7 @@ def res_vertex_rule(m, tm, stf, sit, com, com_type):
     #                       amount of commodity com
     # if power_surplus < 0: production/storage/exports consume a net
     #                       amount of the commodity com
-    power_surplus = - commodity_balance(m, stf, tm, sit, com)
+    power_surplus = - commodity_balance(m, tm, stf, sit, com)
 
     # if com is a stock commodity, the commodity source term e_co_stock
     # can supply a possibly negative power_surplus
@@ -809,7 +809,7 @@ def res_vertex_rule(m, tm, stf, sit, com, com_type):
     # constraint is about power (MW), not energy (MWh)
     if com in m.com_demand:
         try:
-            power_surplus -= m.demand.loc[tm][stf, sit, com]
+            power_surplus -= m.demand.loc[(stf, tm)][sit, com]
         except KeyError:
             pass
     # if sit com is a dsm tuple, the power surplus is decreased by the
@@ -1283,7 +1283,7 @@ def res_global_co2_limit_rule(m, stf):
 
         # scaling to annual output (cf. definition of m.weight)
         co2_output_sum *= m.weight
-        return (co2_output_sum <= m.global_prop.loc[stf, 'CO2 limit', 'value'])
+        return (co2_output_sum <= m.global_prop.loc[stf, 'CO2 limit']['value'])
     else:
         return pyomo.Constraint.Skip
 
