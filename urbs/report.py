@@ -35,9 +35,9 @@ def report(instance, filename, report_tuples=None):
         timeseries = {}
 
         # collect timeseries data
-        for sit, com in report_tuples:
+        for stf, sit, com in report_tuples:
             (created, consumed, stored, imported, exported,
-             dsm) = get_timeseries(instance, com, sit)
+             dsm) = get_timeseries(instance, stf, com, sit)
 
             overprod = pd.DataFrame(
                 columns=['Overproduction'],
@@ -51,7 +51,7 @@ def report(instance, filename, report_tuples=None):
                 axis=1,
                 keys=['Created', 'Consumed', 'Storage', 'Import from',
                       'Export to', 'Balance', 'DSM'])
-            timeseries[(sit, com)] = tableau.copy()
+            timeseries[(stf, sit, com)] = tableau.copy()
 
             # timeseries sums
             sums = pd.concat([created.sum(), consumed.sum(),
@@ -61,7 +61,7 @@ def report(instance, filename, report_tuples=None):
                              axis=0,
                              keys=['Created', 'Consumed', 'Storage', 'Import',
                                    'Export', 'Balance', 'DSM'])
-            energies.append(sums.to_frame("{}.{}".format(sit, com)))
+            energies.append(sums.to_frame("{}.{}".format(stf, sit, com)))
 
         # write timeseries data (if any)
         if timeseries:
@@ -70,7 +70,7 @@ def report(instance, filename, report_tuples=None):
             energy.to_excel(writer, 'Commodity sums')
 
             # write timeseries to individual sheets
-            for sit, com in report_tuples:
+            for stf, sit, com in report_tuples:
                 # sheet names cannot be longer than 31 characters...
-                sheet_name = "{}.{} timeseries".format(sit, com)[:31]
-                timeseries[(sit, com)].to_excel(writer, sheet_name)
+                sheet_name = "{}.{}.{} timeseries".format(stf, sit, com)[:31]
+                timeseries[(stf, sit, com)].to_excel(writer, sheet_name)

@@ -90,12 +90,12 @@ def setup_solver(optim, logfile='solver.log'):
     return optim
 
 
-def run_scenario(input_file, timesteps, scenario, result_dir,
+def run_scenario(input_files, timesteps, scenario, result_dir,
                  plot_tuples=None, plot_periods=None, report_tuples=None):
     """ run an urbs model for given input, time steps and scenario
 
     Args:
-        input_file: filename to an Excel spreadsheet for urbs.read_excel
+        input_files: filenames to an Excel spreadsheet for urbs.read_excel
         timesteps: a list of timesteps, e.g. range(0,8761)
         scenario: a scenario function that modifies the input data dict
         result_dir: directory name for result spreadsheet and plots
@@ -109,23 +109,27 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
 
     # scenario name, read and modify data for scenario
     sce = scenario.__name__
-    data = urbs.read_excel(input_file)
+    data = urbs.read_excel(input_files)
     data = scenario(data)
 
     # create model
     prob = urbs.create_model(data, timesteps)
+    prob.write('test.lp', io_options={'symbolic_solver_labels':True})
 
     # refresh time stamp string and create filename for logfile
     now = prob.created
     log_filename = os.path.join(result_dir, '{}.log').format(sce)
 
     # solve model and read results
-    optim = SolverFactory('glpk')  # cplex, glpk, gurobi, ...
+    optim = SolverFactory('gurobi')  # cplex, glpk, gurobi, ...
     optim = setup_solver(optim, logfile=log_filename)
     result = optim.solve(prob, tee=True)
 
+    # copy input file to result directory
+    # shutil.copyfile(input_files, os.path.join(result_dir, input_files))
+
     # save problem solution (and input data) to HDF5 file
-    urbs.save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))
+    # urbs.save(prob, os.path.join(result_dir, '{}.h5'.format(sce)))
 
     # write report to spreadsheet
     urbs.report(
@@ -144,14 +148,14 @@ def run_scenario(input_file, timesteps, scenario, result_dir,
     return prob
 
 if __name__ == '__main__':
-    input_file = 'mimo-example.xlsx'
-    result_name = os.path.splitext(input_file)[0]  # cut away file extension
+    input_files = urbs.read_intertemporal('Input')
+    result_name = 'Intertemporal'
     result_dir = prepare_result_directory(result_name)  # name + time stamp
 
     # copy input file to result directory
-    shutil.copyfile(input_file, os.path.join(result_dir, input_file))
+    # shutil.copyfile(input_file, os.path.join(result_dir, input_file))
     # copy runme.py to result directory
-    shutil.copyfile(__file__, os.path.join(result_dir, __file__))
+    # shutil.copyfile(__file__, os.path.join(result_dir, __file__))
 
     # simulation timesteps
     (offset, length) = (3500, 168)  # time step selection
@@ -159,15 +163,24 @@ if __name__ == '__main__':
 
     # plotting commodities/sites
     plot_tuples = [
-        ('North', 'Elec'),
-        ('Mid', 'Elec'),
-        ('South', 'Elec'),
-        (['North', 'Mid', 'South'], 'Elec')]
+        (2020, 'North', 'Elec'),
+        (2020, 'Mid', 'Elec'),
+        (2020, 'South', 'Elec'),
+        (2020, ['North', 'Mid', 'South'], 'Elec'),
+        (2030, ['North', 'Mid', 'South'], 'Elec'),
+        (2040, ['North', 'Mid', 'South'], 'Elec'),
+        (2050, ['North', 'Mid', 'South'], 'Elec')]
 
     # detailed reporting commodity/sites
     report_tuples = [
-        ('North', 'Elec'), ('Mid', 'Elec'), ('South', 'Elec'),
-        ('North', 'CO2'), ('Mid', 'CO2'), ('South', 'CO2')]
+        (2020, 'North', 'Elec'), (2020, 'Mid', 'Elec'), (2020, 'South', 'Elec'),
+        (2020, 'North', 'CO2'), (2020, 'Mid', 'CO2'), (2020, 'South', 'CO2'),
+        (2030, 'North', 'Elec'), (2030, 'Mid', 'Elec'), (2030, 'South', 'Elec'),
+        (2030, 'North', 'CO2'), (2030, 'Mid', 'CO2'), (2030, 'South', 'CO2'),
+        (2040, 'North', 'Elec'), (2040, 'Mid', 'Elec'), (2040, 'South', 'Elec'),
+        (2040, 'North', 'CO2'), (2040, 'Mid', 'CO2'), (2040, 'South', 'CO2'),
+        (2050, 'North', 'Elec'), (2050, 'Mid', 'Elec'), (2050, 'South', 'Elec'),
+        (2050, 'North', 'CO2'), (2050, 'Mid', 'CO2'), (2050, 'South', 'CO2')]
 
     # plotting timesteps
     plot_periods = {
@@ -184,16 +197,17 @@ if __name__ == '__main__':
 
     # select scenarios to be run
     scenarios = [
-        scenario_base,
-        scenario_stock_prices,
-        scenario_co2_limit,
-        scenario_co2_tax_mid,
-        scenario_no_dsm,
-        scenario_north_process_caps,
-        scenario_all_together]
+        scenario_base
+        #scenario_stock_prices,
+        #scenario_co2_limit,
+        #scenario_co2_tax_mid,
+        #scenario_no_dsm,
+        #scenario_north_process_caps,
+        #scenario_all_together
+        ]
 
     for scenario in scenarios:
-        prob = run_scenario(input_file, timesteps, scenario, result_dir,
+        prob = run_scenario(input_files, timesteps, scenario, result_dir,
                             plot_tuples=plot_tuples,
                             plot_periods=plot_periods,
                             report_tuples=report_tuples)
