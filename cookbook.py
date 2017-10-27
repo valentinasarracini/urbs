@@ -50,7 +50,7 @@ def sc_1comprop(site, com, type, property, value):
     # variation of 1 property of 1 given commodity
 
     def scenario(data):
-        data['process'].loc[(site, com, type), property] = value
+        data['commodity'].loc[(site, com, type), property] = value
         return data
 
     scenario.__name__ = ('scenario_' + site + com + property +
