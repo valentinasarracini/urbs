@@ -1061,7 +1061,7 @@ def def_partial_process_input_rule(m, tm, stf, sit, pro, coin):
     throughput_factor = (R - min_fraction * r) / (1 - min_fraction)
 
     return (m.e_pro_in[tm, stf, sit, pro, coin] ==
-            m.cap_online[tm, stf, sit, pro] * online_factor +
+            m.cap_pro[tm, stf, sit, pro] * online_factor +
             m.tau_pro[tm, stf, sit, pro] * throughput_factor)
 
 
@@ -1076,7 +1076,7 @@ def def_partial_process_output_rule(m, tm, stf, sit, pro, coo):
     throughput_factor = (R - min_fraction * r) / (1 - min_fraction)
 
     return (m.e_pro_out[tm, stf, sit, pro, coo] ==
-            m.cap_online[tm, stf, sit, pro] * online_factor +
+            m.cap_pro[tm, stf, sit, pro] * online_factor +
             m.tau_pro[tm, stf, sit, pro] * throughput_factor)
 
 
