@@ -64,8 +64,8 @@ def sc_2comprop(site1, site2, com1, com2, type1, type2, property1, property2,
     # variation of 2 properties of 2 given process
 
     def scenario(data):
-        data['process'].loc[(site1, com1, type1), property1] = value1
-        data['process'].loc[(site2, com2, type2), property2] = value2
+        data['commodity'].loc[(site1, com1, type1), property1] = value1
+        data['commodity'].loc[(site2, com2, type2), property2] = value2
         return data
 
     scenario.__name__ = ('scenario_' + site1 + com1 + property1 +
