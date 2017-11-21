@@ -116,14 +116,21 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         m,
         m.transmission['depreciation'],
         m.transmission['wacc'], m.transmission['support_timeframe'])
-    m.transmission.loc[(m.transmission['rv-factor'] < 0) |
-                       (m.transmission['rv-factor'].isnull()), 'rv-factor'] = 0
+    try:
+        m.transmission.loc[(m.transmission['rv-factor'] < 0) |
+                           (m.transmission['rv-factor'].isnull()),
+                           'rv-factor'] = 0
+    except TypeError:
+        pass
     m.storage['rv-factor'] = rv_factor(
         m,
         m.storage['depreciation'],
         m.storage['wacc'], m.storage['support_timeframe'])
-    m.storage.loc[(m.storage['rv-factor'] < 0) |
-                  (m.storage['rv-factor'].isnull()), 'rv-factor'] = 0
+    try:
+        m.storage.loc[(m.storage['rv-factor'] < 0) |
+                      (m.storage['rv-factor'].isnull()), 'rv-factor'] = 0
+    except TypeError:
+        pass
 
     # Sets
     # ====
