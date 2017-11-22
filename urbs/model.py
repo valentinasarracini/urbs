@@ -506,7 +506,7 @@ def create_model(data, timesteps=None, dt=1, dual=False):
         m.tm, m.pro_partial_tuples,
         rule=def_startup_capacity_rule,
         doc='startup_capacity[t] >= cap_online[t] - cap_online[t-1]')
-    m.res_cap_online_init_final = pyomo.Constraint(
+    m.res_cap_online_final = pyomo.Constraint(
         m.tm, m.pro_partial_tuples,
         rule=res_final_cap_online_rule,
         doc='online capacity = process capacity in last step')
