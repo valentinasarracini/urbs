@@ -130,11 +130,6 @@ def read_excel(input_files):
         'dsm': pd.concat(ds)
         }
 
-    for index in data['process_commodity']['ratio'].index:
-        if (data['process_commodity'].loc[index]['ratio'] >
-            data['process_commodity'].loc[index]['ratio-min']):
-            raise ValueError('ratio-min must be larger than ratio!')
-
     # sort nested indexes to make direct assignments work
     for key in data:
         if isinstance(data[key].index, pd.core.index.MultiIndex):
