@@ -841,14 +841,6 @@ def res_process_capacity_rule(m, sit, pro):
             m.process_dict['cap-up'][sit, pro])  # Changed
 
 
-# Online capacity identical in beginning and end
-def res_final_cap_online_rule(m, tm, sit, pro):
-    if tm == m.tm[len(m.tm)]:  # last timestep
-        return (m.cap_online[tm, sit, pro] == m.cap_pro[sit, pro])
-    else:
-        return pyomo.Constraint.Skip
-
-
 # used process area <= maximal process area
 def res_area_rule(m, sit):
     if m.site.loc[sit]['area'] >= 0 and sum(
