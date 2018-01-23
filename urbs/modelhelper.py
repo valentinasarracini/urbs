@@ -53,11 +53,12 @@ def rv_factor(m, n, i, year_built):
 def stf_dist(stf, m):
     """Calculates the distance between the modeled support timeframes.
     """
-    sorted_stf = sorted(list(m.stf))
+    sorted_stf = sorted(list(m.commodity.index.
+                             get_level_values('support_timeframe').unique()))
     dist = []
 
     for s in sorted_stf:
-        if s == max(m.stf):
+        if s == max(sorted_stf):
             dist.append(1)
         else:
             dist.append(sorted_stf[sorted_stf.index(s) + 1] - s)
@@ -403,7 +404,7 @@ def commodity_subset(com_tuples, type_name):
 
     Args:
         com_tuples: a list of (site, commodity, commodity type) tuples
-        type_name: a commodity type or a ist of a commodity types
+        type_name: a commodity type or a list of a commodity types
 
     Returns:
         The set (unique elements/list) of commodity names of the desired type

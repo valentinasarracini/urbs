@@ -691,7 +691,7 @@ def res_vertex_rule(m, tm, stf, sit, com, com_type):
     # constraint is about power (MW), not energy (MWh)
     if com in m.com_demand:
         try:
-            power_surplus -= m.demand_dict[(stf, sit, com)][tm]
+            power_surplus -= m.demand_dict[(sit, com)][(stf, tm)]
 
         except KeyError:
             pass
@@ -886,20 +886,21 @@ def def_process_capacity_rule(m, stf, sit, pro):
 # process input power == process throughput * input ratio
 def def_process_input_rule(m, tm, stf, sit, pro, com):
     return (m.e_pro_in[tm, stf, sit, pro, com] ==
-            m.tau_pro[tm, stf, sit, pro] * m.r_in_dict[(stf, pro, co)])
+            m.tau_pro[tm, stf, sit, pro] * m.r_in_dict[(stf, pro, com)])
 
 
 # process output power = process throughput * output ratio
-def def_process_output_rule(m, tm, stf, sit, pro, co):
-    return (m.e_pro_out[tm, stf, sit, pro, co] ==
-            m.tau_pro[tm, stf, sit, pro] * * m.r_out_dict[(pro, co)])
+def def_process_output_rule(m, tm, stf, sit, pro, com):
+    return (m.e_pro_out[tm, stf, sit, pro, com] ==
+            m.tau_pro[tm, stf, sit, pro] * m.r_out_dict[(stf, pro, com)])
 
 
 # process input (for supim commodity) = process capacity * timeseries
 def def_intermittent_supply_rule(m, tm, stf, sit, pro, coin):
     if coin in m.com_supim:
         return (m.e_pro_in[tm, stf, sit, pro, coin] ==
-                m.cap_pro[stf, sit, pro] * m.supim_dict[(stf, sit, coin)][tm])
+                m.cap_pro[stf, sit, pro] *
+                m.supim_dict[(sit, coin)][(stf, tm)])
     else:
         return pyomo.Constraint.Skip
 
@@ -1193,7 +1194,7 @@ def def_costs_rule(m, cost_type):
                 m.storage_dict['inv-cost-c'][s] *
                 m.storage_dict['invcost-factor'][s]
                 for s in m.sto_tuples) - \
-            m.process_dict['inv-cost'][p] *
+            sum(m.process_dict['inv-cost'][p] *
                 m.process_dict['rv-factor'][p]
                 for p in m.pro_tuples) + \
             sum(m.cap_tra_new[t] *
@@ -1238,7 +1239,7 @@ def def_costs_rule(m, cost_type):
                 m.storage_dict['cost_factor'][s] +
                 (m.e_sto_in[(tm,) + s] + m.e_sto_out[(tm,) + s]) * m.dt *
                 m.weight * m.storage_dict['var-cost-p'][s] *
-                mm.storage_dict['cost_factor'][s]
+                m.storage_dict['cost_factor'][s]
                 for tm in m.tm
                 for s in m.sto_tuples)
 
@@ -1255,7 +1256,7 @@ def def_costs_rule(m, cost_type):
 
         return m.costs[cost_type] == -sum(
             m.e_co_sell[(tm,) + c] *
-            m.buy_sell_price_dict[c[0], c[2]][tm] * m.weight * m.dt *
+            m.buy_sell_price_dict[c[2]][(c[0], tm)] * m.weight * m.dt *
             m.commodity_dict['price'][c] *
             m.commodity_dict['cost_factor'][c]
             for tm in m.tm
@@ -1266,7 +1267,7 @@ def def_costs_rule(m, cost_type):
 
         return m.costs[cost_type] == sum(
             m.e_co_buy[(tm,) + c] *
-            m.buy_sell_price_dict[c[0], c[2]][tm] * m.weight * m.dt *
+            m.buy_sell_price_dict[c[2]][(c[0], tm)] * m.weight * m.dt *
             m.commodity_dict['price'][c] *
             m.commodity_dict['cost_factor'][c]
             for tm in m.tm

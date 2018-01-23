@@ -150,7 +150,7 @@ def pyomo_model_prep(data, timesteps):
     #
     #     m.storage.loc[site, storage, commodity][attribute]
     #
-    m.global_prop = data['global_prop'].drop('description', axis=1)
+    m.global_prop = data['global_prop']
     m.site = data['site']
     m.commodity = data['commodity']
     m.process = data['process']
@@ -175,10 +175,9 @@ def pyomo_model_prep(data, timesteps):
                                       get_level_values('support_timeframe'))
 
     # Converting Data frames to dict
-    m.commodity_dict = m.commodity.to_dict()  # Changed
-    m.demand_dict = m.demand.to_dict()  # Changed
-    m.supim_dict = m.supim.to_dict()  # Changed
-    m.dsm_dict = m.dsm.to_dict()  # Changed
+    m.demand_dict = m.demand.to_dict()
+    m.supim_dict = m.supim.to_dict()
+    m.dsm_dict = m.dsm.to_dict()
     m.buy_sell_price_dict = m.buy_sell_price.to_dict()
 
     # process input/output ratios
@@ -258,8 +257,39 @@ def pyomo_model_prep(data, timesteps):
     except TypeError:
         pass
 
+    # Derive multiplier for all energy based costs
+    m.commodity['stf_dist'] = (m.commodity['support_timeframe'].
+                               apply(stf_dist, m=m))
+    m.commodity['c_helper'] = (m.commodity['support_timeframe'].
+                               apply(cost_helper, m=m))
+    m.commodity['c_helper2'] = m.commodity['stf_dist'].apply(cost_helper2, m=m)
+    m.commodity['cost_factor'] = (m.commodity['c_helper'] *
+                                  m.commodity['c_helper2'])
+
+    m.process['stf_dist'] = m.process['support_timeframe'].apply(stf_dist, m=m)
+    m.process['c_helper'] = (m.process['support_timeframe'].
+                             apply(cost_helper, m=m))
+    m.process['c_helper2'] = m.process['stf_dist'].apply(cost_helper2, m=m)
+    m.process['cost_factor'] = m.process['c_helper'] * m.process['c_helper2']
+
+    m.transmission['stf_dist'] = (m.transmission['support_timeframe'].
+                                  apply(stf_dist, m=m))
+    m.transmission['c_helper'] = (m.transmission['support_timeframe'].
+                                  apply(cost_helper, m=m))
+    m.transmission['c_helper2'] = (m.transmission['stf_dist'].
+                                   apply(cost_helper2, m=m))
+    m.transmission['cost_factor'] = (m.transmission['c_helper'] *
+                                     m.transmission['c_helper2'])
+
+    m.storage['stf_dist'] = m.storage['support_timeframe'].apply(stf_dist, m=m)
+    m.storage['c_helper'] = (m.storage['support_timeframe']
+                             .apply(cost_helper, m=m))
+    m.storage['c_helper2'] = m.storage['stf_dist'].apply(cost_helper2, m=m)
+    m.storage['cost_factor'] = m.storage['c_helper'] * m.storage['c_helper2']
+
     # Converting Data frames to dictionaries
     #
+    m.commodity_dict = m.commodity.to_dict()
     m.process_dict = m.process.to_dict()  # Changed
     m.transmission_dict = m.transmission.to_dict()  # Changed
     m.storage_dict = m.storage.to_dict()  # Changed

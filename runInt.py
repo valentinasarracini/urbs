@@ -115,7 +115,7 @@ def run_scenario(input_files, timesteps, scenario, result_dir,
 
     # create model
     prob = urbs.create_model(data, timesteps)
-    prob.write('test.lp', io_options={'symbolic_solver_labels':True})
+    #prob.write('test.lp', io_options={'symbolic_solver_labels':True})
 
     # refresh time stamp string and create filename for logfile
     now = prob.created
