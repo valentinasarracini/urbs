@@ -2,6 +2,8 @@ import pandas as pd
 import os
 import glob
 from xlrd import XLRDError
+import pyomo.core as pyomo
+from .modelhelper import *
 
 
 def read_intertemporal(folder):
@@ -133,8 +135,135 @@ def read_excel(input_files):
     # sort nested indexes to make direct assignments work
     for key in data:
         if isinstance(data[key].index, pd.core.index.MultiIndex):
-            data[key].sortlevel(inplace=True)
+            data[key].sort_index(inplace=True)
     return data
+
+
+# preparing the pyomo model
+def pyomo_model_prep(data, timesteps):
+    m = pyomo.ConcreteModel()
+
+    # Preparations
+    # ============
+    # Data import. Syntax to access a value within equation definitions looks
+    # like this:
+    #
+    #     m.storage.loc[site, storage, commodity][attribute]
+    #
+    m.global_prop = data['global_prop'].drop('description', axis=1)
+    m.site = data['site']
+    m.commodity = data['commodity']
+    m.process = data['process']
+    m.process_commodity = data['process_commodity']
+    m.transmission = data['transmission']
+    m.storage = data['storage']
+    m.demand = data['demand']
+    m.supim = data['supim']
+    m.buy_sell_price = data['buy_sell_price']
+    m.timesteps = timesteps
+    m.dsm = data['dsm']
+
+    # Create columns of support timeframe values
+    m.commodity['support_timeframe'] = (m.commodity.index.
+                                        get_level_values('support_timeframe'))
+    m.process['support_timeframe'] = (m.process.index.
+                                      get_level_values('support_timeframe'))
+    m.transmission['support_timeframe'] = (m.transmission.index.
+                                           get_level_values
+                                           ('support_timeframe'))
+    m.storage['support_timeframe'] = (m.storage.index.
+                                      get_level_values('support_timeframe'))
+
+    # Converting Data frames to dict
+    m.commodity_dict = m.commodity.to_dict()  # Changed
+    m.demand_dict = m.demand.to_dict()  # Changed
+    m.supim_dict = m.supim.to_dict()  # Changed
+    m.dsm_dict = m.dsm.to_dict()  # Changed
+    m.buy_sell_price_dict = m.buy_sell_price.to_dict()
+
+    # process input/output ratios
+    m.r_in = m.process_commodity.xs('In', level='Direction')['ratio']
+    m.r_out = m.process_commodity.xs('Out', level='Direction')['ratio']
+    m.r_in_dict = m.r_in.to_dict()
+    m.r_out_dict = m.r_out.to_dict()
+
+    # process areas
+    m.proc_area = m.process['area-per-cap']
+    m.sit_area = m.site['area']
+    m.proc_area = m.proc_area[m.proc_area >= 0]
+    m.sit_area = m.sit_area[m.sit_area >= 0]
+
+    # installed units for intertemporal planning
+    m.inst_pro = m.process['inst-cap']
+    m.inst_pro = m.inst_pro[m.inst_pro > 0]
+    m.inst_tra = m.transmission['inst-cap']
+    m.inst_tra = m.inst_tra[m.inst_tra > 0]
+    m.inst_sto = m.storage['inst-cap-p']
+    m.inst_sto = m.inst_sto[m.inst_sto > 0]
+
+    # input ratios for partial efficiencies
+    # only keep those entries whose values are
+    # a) positive and
+    # b) numeric (implicitely, as NaN or NV compare false against 0)
+    m.r_in_min_fraction = m.process_commodity.xs('In', level='Direction')
+    m.r_in_min_fraction = m.r_in_min_fraction['ratio-min']
+    m.r_in_min_fraction = m.r_in_min_fraction[m.r_in_min_fraction > 0]
+
+    # output ratios for partial efficiencies
+    # only keep those entries whose values are
+    # a) positive and
+    # b) numeric (implicitely, as NaN or NV compare false against 0)
+    m.r_out_min_fraction = m.process_commodity.xs('Out', level='Direction')
+    m.r_out_min_fraction = m.r_out_min_fraction['ratio-min']
+    m.r_out_min_fraction = m.r_out_min_fraction[m.r_out_min_fraction > 0]
+
+    # derive invest factor from WACC, depreciation and discount untility
+    m.process['invcost-factor'] = invcost_factor(
+        m,
+        m.process['depreciation'],
+        m.process['wacc'], m.process['support_timeframe'])
+    m.transmission['invcost-factor'] = invcost_factor(
+        m,
+        m.transmission['depreciation'],
+        m.transmission['wacc'], m.transmission['support_timeframe'])
+    m.storage['invcost-factor'] = invcost_factor(
+        m,
+        m.storage['depreciation'],
+        m.storage['wacc'], m.storage['support_timeframe'])
+
+    # derive rest value factor from WACC, depreciation and discount untility
+    m.process['rv-factor'] = rv_factor(
+        m,
+        m.process['depreciation'],
+        m.process['wacc'], m.process['support_timeframe'])
+    m.process.loc[(m.process['rv-factor'] < 0) |
+                  (m.process['rv-factor'].isnull()), 'rv-factor'] = 0
+    m.transmission['rv-factor'] = rv_factor(
+        m,
+        m.transmission['depreciation'],
+        m.transmission['wacc'], m.transmission['support_timeframe'])
+    try:
+        m.transmission.loc[(m.transmission['rv-factor'] < 0) |
+                           (m.transmission['rv-factor'].isnull()),
+                           'rv-factor'] = 0
+    except TypeError:
+        pass
+    m.storage['rv-factor'] = rv_factor(
+        m,
+        m.storage['depreciation'],
+        m.storage['wacc'], m.storage['support_timeframe'])
+    try:
+        m.storage.loc[(m.storage['rv-factor'] < 0) |
+                      (m.storage['rv-factor'].isnull()), 'rv-factor'] = 0
+    except TypeError:
+        pass
+
+    # Converting Data frames to dictionaries
+    #
+    m.process_dict = m.process.to_dict()  # Changed
+    m.transmission_dict = m.transmission.to_dict()  # Changed
+    m.storage_dict = m.storage.to_dict()  # Changed
+    return m
 
 
 def split_columns(columns, sep='.'):
